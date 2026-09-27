@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "ms-vscode-remote.remote-containers",
+    "github.codespaces",
+    "anthropic.claude-code"
+  ]
+}

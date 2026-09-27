@@ -1,0 +1,19 @@
+{
+  "name": "Biomix ERP Sales Workbench",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "24.21.0" }
+  },
+  "remoteUser": "vscode",
+  "hostRequirements": { "cpus": 2, "memory": "8gb" },
+  "postCreateCommand": "npm ci",
+  "waitFor": "postCreateCommand",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "Biomix Workbench", "onAutoForward": "openBrowser", "protocol": "http" }
+  },
+  "containerEnv": { "NEXT_TELEMETRY_DISABLED": "1" },
+  "customizations": {
+    "vscode": { "extensions": ["dbaeumer.vscode-eslint", "anthropic.claude-code"] }
+  }
+}

@@ -1,0 +1,37 @@
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env*
+!.env.example
+*.log
+data/private/*
+!data/private/.gitkeep
+*.sqlite*
+*.db
+.claude/
+.codex/
+# Local conversation context; public contributor guidance lives in CLAUDE.md.
+docs/claude-handoff.md
+docs/claude-start.md
+# Private attachments, exports, screenshots and credentials are not portfolio source.
+*.csv
+*.tsv
+*.xls
+*.xlsx
+*.xlsm
+*.pdf
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.zip
+Screenshot*
+Screen Recording*
+*.pem
+*.key
+*.p12
+*.pfx
+tmp/
