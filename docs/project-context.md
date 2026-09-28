@@ -6,7 +6,11 @@ The public repository contains project source, technical documentation and ficti
 
 ## Business scenario
 
-Biomix has Agro and Home & Garden business units. Sales stakeholders need invoiced-sales trends, seller/customer/product reporting, and scheduled collections. Active invoices are the complete sales source for this demo; canceled orders are already removed. Pending orders, logistics, lead attribution, and live ERP integration are outside scope.
+Biomix has Agro and Home & Garden business units. Sales stakeholders need invoiced-sales trends, seller/customer/product reporting, and scheduled collections. Active invoices are the complete sales source for this demo; canceled orders are already removed. The project starts from clean, validated sales data: the real ERP was messy and its API closed, and agreed conventions already turned its Excel export into clean data. A simulated JSON feed delivers that clean data into Postgres ([decision 002](architecture-002-clean-data-platform.md)). Pending orders, logistics, lead attribution, and live ERP integration are outside scope.
+
+By an internal management convention, each delivery carries the invoices of the last closed month. New invoices are added whatever their date; a resent invoice replaces the stored one; nothing is deleted.
+
+Sellers are assigned by city-based territories, not states. A seller never sells in another seller's territory: all of a seller's sales are inside their own territory. Each customer is owned by one seller. Agro and Home & Garden territories may share cities; each customer there still belongs to only one seller. Two sellers cover Home & Garden (Grande São Paulo; São José dos Campos, Campinas, Holambra and bordering cities) and three cover Agro (Região Serrana of Rio de Janeiro and the state of Espírito Santo; Zona da Mata Mineira; Guaxupé and bordering cities). Seller names in the sample data are fictional; the full table is in decision 002.
 
 Three independent projects are planned, completed in order:
 
@@ -24,6 +28,6 @@ Use an explicit as-of date and exclude later transactions from all evidence/tool
 
 ## Data and portfolio boundaries
 
-The planned synthetic dataset covers three complete years, repeat customers, multi-line invoices, both units, and segments (farmer, agricultural reseller, retail chain, garden store, landscaping professional). Cases should include normal seasonality, missed windows, reduced purchases, split invoices, and new customers. Its generation requires the maintainer's direction. Keep a separate evaluation answer key unavailable to operational tools/agents.
+The planned synthetic dataset covers 1 January 2023 to 25 September 2026, with annual revenue targets set by the maintainer and a fixed 60% Agro / 40% Home & Garden split, repeat customers, multi-line invoices, both units, and segments (farmer, agricultural reseller, retail chain, garden store, landscaping professional). Cases should include normal seasonality, missed windows, reduced purchases, split invoices, and new customers. It is produced by a seeded generator, and its output is not committed. Keep a separate evaluation answer key unavailable to operational tools/agents.
 
-No final date range, dataset size, numerical API budget, model provider, production hosting provider, or delivery deadline is settled. Prefer reproducible Codespaces runs and recorded demos; local development is optional.
+No final dataset size, numerical API budget, model provider, production hosting provider, or delivery deadline is settled. Prefer reproducible Codespaces runs and recorded demos; local development is optional.

@@ -46,7 +46,7 @@ From the project terminal, run `npm run dev` if the app is not already running. 
 4. Upload `qa-valid.xlsx` again. Confirm it works and the filters start cleared.
 5. Reload the page. Confirm the uploaded report disappears, as the application promises.
 
-Also verify the new sheet picker with a tiny fictional workbook containing the valid `Sales` sheet and an unrelated `Other` sheet. The upload should show one button for each sheet and no sheet-name text field. Click **Sales** and confirm the same three-line totals shown above. This additional check is pending; the two existing single-sheet fixtures cannot exercise it.
+Also verify the new sheet picker with a tiny fictional workbook containing the valid `Sales` sheet and an unrelated `Other` sheet. The upload should show one button for each sheet and no sheet-name text field. Click **Sales** and confirm the same three-line totals shown above. This additional check is pending. Claude generated `qa-multi-sheet.xlsx` for it in `data/private/qa/` (a `Sales` sheet identical to `qa-valid.xlsx` plus an `Other` sheet with one fictional note). The app's own import code rejects it with `SHEET_SELECTION_AMBIGUOUS`, lists `Sales` and `Other`, and accepts the three `Sales` lines once `Sales` is selected.
 
 Record pass/fail for each step. If something differs, report the step, expected result, and actual result; a screenshot of these fictional test results can help.
 

@@ -56,7 +56,7 @@ Preserve misspellings at the import boundary, then normalize names:
 6. Invoice grouping is within one import. Proposed key: invoice number, **only under an explicit uniqueness restriction for that import**. Require customer, billing date, seller, business unit, and payment schedule to agree across lines. If invoice numbers can be reused by series/issuer/year, require an explicit invoice identity field before grouping; do not silently combine them or invent a series.
 7. Ignore fully blank rows with a count; retain row references. Reject partial imports containing blocking issues so reports cannot appear complete after dropping bad rows. Distinguish blocking errors from unsupported optional mass/volume warnings. Return sheet, row, field, code, and suggested correction; avoid raw identity values in server logs.
 8. Aggregate each invoice once for installments. Allocate the remainder one cent at a time to the earliest installments. Example: 100 cents / 3 → [34,33,33]. The schedule must sum exactly to its invoice total.
-9. Upload file size/row caps, duplicate-import policy, and persistence must be documented before public upload functionality. No global mutable shared dataset. No evaluation answer keys as application evidence.
+9. Upload file size/row caps, duplicate-import policy, and persistence must be documented before public upload functionality. Persistence and the record-level update policy for the planned JSON feed are in [decision 002](architecture-002-clean-data-platform.md). No global mutable shared dataset. No evaluation answer keys as application evidence.
 
 ## Milestone 1 implementation choices
 

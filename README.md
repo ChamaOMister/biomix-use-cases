@@ -38,7 +38,7 @@ Open http://localhost:3000. Open `biomix.code-workspace` in VS Code, or open thi
 | Styling | Plain CSS | Small foundation with no component-library setup |
 | XLSX and validation | ExcelJS 4.4.0 adapter + hand-written strict field parsers (`src/domain/sales-import/`) | Explicit spreadsheet parsing and located, actionable validation issues |
 | Calculations | Pure TypeScript; integer BRL cents | Reviewable, deterministic arithmetic |
-| Storage | None: accepted data lives only in the uploading browser tab | Session-scoped by construction; add SQLite only if persistence is justified |
+| Storage | None yet: accepted data lives only in the uploading browser tab | Postgres behind a clean JSON feed is planned; see [decision 002](docs/architecture-002-clean-data-platform.md) |
 | Checks | ESLint, TypeScript, Vitest behavior tests, build | Import contract is tested with tiny fictional in-memory workbooks |
 
 ```mermaid
