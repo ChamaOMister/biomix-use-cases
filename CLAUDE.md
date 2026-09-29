@@ -2,7 +2,7 @@
 
 You are the implementation assistant. The maintainer owns business decisions and coordinates implementation and review. Follow the user's live instructions over reference documents.
 
-This repository implements XLSX import and invoiced-sales reporting. Start with `README.md`, `docs/reviews/milestone-2-review.md` and `docs/manual-qa.md` for current scope and outstanding verification, then read `docs/data-contract.md` and `docs/architecture-002-clean-data-platform.md` (planned clean-data feed, Postgres and synthetic generator). The project starts from already-clean data; do not extend ERP-export handling. Milestone 3 remains on hold pending the outstanding review and browser checks. Local conversation handoffs are Git-ignored and are not required to run or contribute to the public project.
+This repository implements XLSX import and invoiced-sales reporting. Start with `README.md`, `docs/milestones.md` and `docs/reviews/milestone-2-review.md` for current scope, then read `docs/data-contract.md` and `docs/architecture-002-clean-data-platform.md` (planned clean-data feed, Postgres and synthetic generator). The project starts from already-clean data; do not extend ERP-export handling. Milestone 2 is complete (review approved, browser QA accepted 2026-09-29); Milestone 3 may start when the maintainer requests it. Local conversation handoffs are Git-ignored and are not required to run or contribute to the public project.
 
 Work only on the requested milestone. Explain consequential choices briefly, implement, run relevant checks, and return a reviewable summary. Ask only questions that block correctness or materially change scope. Do not repeatedly plan, bootstrap over existing files, or build all three projects together.
 
