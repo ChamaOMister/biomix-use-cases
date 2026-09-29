@@ -1,6 +1,49 @@
-# Milestones 4–6 review — changes requested
+# Milestones 4–6 review — approved after corrections
 
-## Verdict — 2026-09-29
+## Re-review verdict — 2026-09-29
+
+**Approved: milestones 4–6. R1, R2 and R3 are closed, with no new blocking findings in the correction scope.** The Project 1 review gate is satisfied. This verdict supersedes the initial changes-requested verdict preserved below; it does not claim that release publication or the previously waived checks have been performed.
+
+Reviewed branch `milestones-3-6` at `0c3d1a0da132039b90555dcdd2feb85e8763feed`, with a clean workspace before review and an identical pushed head confirmed by `git ls-remote origin refs/heads/milestones-3-6`. The original review was preserved unchanged in `4bbffa8`. Correction scope: `f871973` (R1), `5a11390` (R2), `f311708` (R3) and `0c3d1a0` (maintainer decisions and verification record), against reviewed head `53f68e3`.
+
+### Finding disposition
+
+| Finding | Verdict | Independently verified behavior |
+| --- | --- | --- |
+| R1 — P2, ill-formed Unicode | **Closed** | The shared text validator checks `isWellFormed()` before NFC validation. High and low unpaired surrogates return located `TEXT_INVALID` errors; no replacement characters are written. Direct ingestion and real HTTP probes covered 15 malformed invoice/customer/product ID and name cases, each alongside a valid correction to an existing invoice. Every delivery was rejected whole, HTTP returned 422, and all customer, product, invoice, line and installment rows remained identical. Valid supplementary characters survived storage exactly; decomposed NFC-invalid text remained rejected. |
+| R2 — P2, object field order | **Closed** | New receipts fingerprint recursively sorted object keys while preserving arrays and values. Top-level, nested and fully reordered retries returned the original applied/rejected result, directly and over HTTP (200/422 with `Idempotent-Replayed: true`). An applied retry did not undo a later correction. Reordered invoices, reordered lines and changed nested values still returned 409. The database suite also passed the concurrent reordered-copy regression, which verifies exactly one application. |
+| R2 — existing receipts | **Compatibility accepted** | Disposable applied and rejected receipts carrying the old hash replayed in their original field order; reordered legacy retries and changed content still returned 409. A separate `BEGIN READ ONLY` transaction independently compared all **46 development receipts** with the existing generated delivery files: every receipt matched only the old hash. The fallback preserves their previous replay behavior without migration, reset or receipt rewrites. The legacy field-order limitation is explicitly documented in `docs/database.md`. |
+| R3 — P3, mobile overflow | **Closed** | The grid children can shrink and the mobile track uses `minmax(0, 1fr)`. A freshly built snapshot opened offline from `file://` under its CSP measured **390 px page width at a 390 px viewport** in unfiltered, Agro 2025, one-customer and one-product views. The table wrappers stayed inside the page (right edge 355 px); wide tables had internal scrolling. The same four views fit at 768, 1280 and 1440 px. Totals, reconciliation indicators and the product-filter collections notice remained correct. |
+
+### Business decisions and remaining non-blocking items
+
+The maintainer's decisions in `0c3d1a0` resolve the three choices raised in the initial review: the last successfully applied new delivery wins and the sender owns ordering; cancelling an already stored invoice is outside Project 1; due-date filtering is deferred, retaining billing-date selection and all installments of selected invoices. The contract, decision 002, collections guide, database guide, OpenAPI description and README are consistent with these decisions. The setup verification now explicitly corrects the earlier incorrect mobile-width claim.
+
+The snapshot's due-month labels still wrap at mobile width (cosmetic, also visible in the re-review screenshot). Reading the live page's reports and filter context within one consistent read transaction remains a non-blocking suggestion. Neither prevents approval.
+
+### Re-review verification and limits
+
+- **Required check:** the command below exited **0**, on Node **v24.21.0** / npm **11.19.0**. Lint, type generation, TypeScript, **477 passed / 0 skipped in 20 files**, and production build all passed. This is 15 additional tests relative to the initial review's 462. No dependency or lockfile changed; `npm ci` was not repeated in this focused review.
+
+  ```sh
+  node --env-file-if-exists=.env.local --input-type=module -e 'import {spawnSync} from "node:child_process"; if(!process.env.DATABASE_URL) throw new Error("DATABASE_URL required for review"); const result=spawnSync("npm",["run","check"],{stdio:"inherit"}); process.exit(result.status ?? 1);' > /tmp/milestone-4-6-rereview-check.log 2>&1
+  ```
+
+- **Independent R1/R2 probes:** `node /tmp/milestone-4-6-rereview-probe.mjs > /tmp/milestone-4-6-rereview-probe.log 2>&1` — exit **0**. A production server on localhost port 3116 used a temporary API key and a newly migrated disposable schema. Probes covered the behavior in the table above, then stopped the server and dropped the schema. The existing development receipts were only read, inside a read-only transaction; no development delivery was resent or reset.
+- **Snapshot build:** `npm run snapshot:build -- --out /tmp/milestone-4-6-rereview-snapshot.html` — exit **0**, seed 2026. The independent browser command below exited **0**: all **16 view/viewport combinations** fit, with only the initial file request per context and **zero network requests, CSP violations or page/console errors**. The unfiltered total remained R$ 87.963.059,70 and Agro 2025 remained R$ 15.584.715,50. The mobile screenshot was also inspected.
+
+  ```sh
+  LD_LIBRARY_PATH=/tmp/milestone-4-6-browser/runtime/usr/lib/x86_64-linux-gnu FONTCONFIG_FILE=/tmp/milestone-4-6-browser/fonts.conf PLAYWRIGHT_BROWSERS_PATH=/tmp/milestone-4-6-browser/browsers node /tmp/milestone-4-6-rereview-browser.mjs > /tmp/milestone-4-6-rereview-browser.log 2>&1
+  ```
+
+- **Hosted CI:** read-only public GitHub API requests (`curl --fail --silent --show-error`) for [run 36617438835](https://github.com/ChamaOMister/biomix-use-cases/actions/runs/36617438835) and its `/jobs` endpoint exited **0**. Confirmed exact head `0c3d1a0da132039b90555dcdd2feb85e8763feed`, completed **success**, successful install, migration, check, snapshot build and artifact upload steps; `release-snapshot` was skipped. Hosted logs were not downloaded, so the exact test count above is independently established locally, not attributed to hosted logs.
+- **Scope and limits:** no new release/tag, fresh Codespace, forwarded-browser session, historical migration rehearsal or repeat of the initial full manual reconciliation was performed. Their original evidence and limits remain below. Publication and the README release-download link remain untested. Only this review document was edited; probes, logs and the generated snapshot stayed under `/tmp`. No implementation, tests, dependencies or generated data were committed by this re-review.
+
+---
+
+The remainder records the **initial review at `53f68e3`**, including the original reproductions, recommendations and correction handoff. Its changes-requested status and unresolved choices are historical; the re-review disposition above is current.
+
+## Initial verdict — 2026-09-29 (superseded)
 
 **Two confirmed P2 findings require correction before approval: R1 (invoice identity changes during storage) and R2 (unchanged JSON retries conflict).** R3 is a confirmed P3 layout defect. Milestones 4–6 remain awaiting approval; Project 1 is not complete and Project 2 must not start.
 
