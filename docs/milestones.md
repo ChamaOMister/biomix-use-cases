@@ -30,7 +30,7 @@ Reconcile representative source totals manually, run the behavior suite, verify 
 
 ## Project 1 status, 2026-09-29
 
-Milestones 1–6 are implemented and review-approved: milestones 1 and 2 with browser QA accepted, milestone 3 in [its review](reviews/milestone-3-review.md), and milestones 4–6 together in [their review](reviews/milestone-4-6-review.md) (R1–R3 closed). The maintainer waived the fresh Codespace's browser steps ([setup verification](setup-verification.md#fresh-codespace-2026-09-29)). Remaining before Project 1 is complete: publish the first versioned release and verify its downloaded snapshot.
+**Complete.** Milestones 1–6 are implemented and review-approved: milestones 1 and 2 with browser QA accepted, milestone 3 in [its review](reviews/milestone-3-review.md), and milestones 4–6 together in [their review](reviews/milestone-4-6-review.md) (R1–R3 closed). The maintainer waived the fresh Codespace's browser steps ([setup verification](setup-verification.md#fresh-codespace-2026-09-29)). Released as [v1.0.0](https://github.com/ChamaOMister/biomix-use-cases/releases/tag/v1.0.0), and its downloaded snapshot was verified ([release verification](setup-verification.md#release-v100-2026-09-29)). Project 2 starts in a separate repository.
 
 Non-blocking follow-ups from the review, not scheduled:
 
