@@ -2,7 +2,7 @@
 
 A **workbook** is an entire Excel file (`.xlsx`). A **worksheet** or **sheet** is one tab inside it. For example, `qa-valid.xlsx` could contain a tab called `Sales`.
 
-The automated tests check calculations and failure handling. This short manual check verifies what you see when using the upload form and filters. It is still pending; code review and a passing build do not establish that the browser flow was exercised.
+The automated tests check calculations and failure handling. This short manual check verifies what you see when using the upload form and filters. Code review and a passing build do not establish that the browser flow was exercised; see the recorded results below.
 
 ## Preparation
 
@@ -25,7 +25,21 @@ Expected results for `qa-valid.xlsx`:
 
 `qa-invalid.xlsx` is rejected with one issue: `FIELD_REQUIRED` at Sales · X4, Customer ID.
 
-Results so far (maintainer-reported, 2026-09-27): step 1 **pass** and step 3 **pass**, both on the previous form where a sheet name was typed. The new automatic single-sheet flow and multi-sheet picker remain unverified in a browser. Steps 2, 4 and 5 have not been run yet. After approving the R2 follow-up, Codex retried browser access and received **“Computer Use permissions are not granted.”** This is an access blocker, not a failed application test.
+Results so far (maintainer-reported, 2026-09-27): step 1 **pass** and step 3 **pass**, both on the previous form where a sheet name was typed. After approving the R2 follow-up, Codex retried browser access and received **“Computer Use permissions are not granted.”** This was an access blocker, not a failed application test.
+
+Automated browser run (Claude, 2026-09-29), on the current form: **all steps pass, including the sheet picker.** A throwaway headless Chromium (Playwright 1.63.0, `chrome-headless-shell` 153) ran inside the Codespace against `npm run dev`. It did not use the maintainer's own browser. The script, browser and system libraries were kept in a temporary session folder and deleted afterwards; no project dependency was added. The script made 22 assertions against the rendered page, all passing:
+
+| Step | Checked | Result |
+| --- | --- | --- |
+| Form | No sheet-name text field | pass |
+| 1 | `qa-valid.xlsx` with no sheet name: R$ 2.830,60 · 2 · 3 · R$ 141,53; source reconciliation shows “(match)” | pass |
+| 2 | P-QA-A; P-QA-A + C-QA-01; **Clear filters** restores totals and resets both selects; C-QA-01 alone; C-QA-02 alone — all five rows of the table above | pass |
+| 3 | `qa-invalid.xlsx` (uploaded while a filter was set): “Import rejected: no report produced”, one issue `FIELD_REQUIRED` at Sales · X4, Customer ID; totals and report heading gone | pass |
+| 4 | `qa-valid.xlsx` again: original totals, customer and product filters start empty | pass |
+| 5 | Reload: upload form shown, no totals or report heading | pass |
+| Sheet picker | `qa-multi-sheet.xlsx`: buttons **Sales** and **Other**, no text field; clicking **Sales** gives the three-line totals | pass |
+
+The browser console showed no errors other than the two expected HTTP 422 responses, which the dev server log identifies as the `FIELD_REQUIRED` and `SHEET_SELECTION_AMBIGUOUS` rejections. Screenshots were inspected for steps 3 and the picker. This is automated evidence from a headless browser. The maintainer accepted it as Milestone 2 browser QA on 2026-09-29.
 
 If needed, relay this task to Claude:
 
@@ -46,7 +60,9 @@ From the project terminal, run `npm run dev` if the app is not already running. 
 4. Upload `qa-valid.xlsx` again. Confirm it works and the filters start cleared.
 5. Reload the page. Confirm the uploaded report disappears, as the application promises.
 
-Also verify the new sheet picker with a tiny fictional workbook containing the valid `Sales` sheet and an unrelated `Other` sheet. The upload should show one button for each sheet and no sheet-name text field. Click **Sales** and confirm the same three-line totals shown above. This additional check is pending. Claude generated `qa-multi-sheet.xlsx` for it in `data/private/qa/` (a `Sales` sheet identical to `qa-valid.xlsx` plus an `Other` sheet with one fictional note). The app's own import code rejects it with `SHEET_SELECTION_AMBIGUOUS`, lists `Sales` and `Other`, and accepts the three `Sales` lines once `Sales` is selected.
+Also verify the new sheet picker with a tiny fictional workbook containing the valid `Sales` sheet and an unrelated `Other` sheet. The upload should show one button for each sheet and no sheet-name text field. Click **Sales** and confirm the same three-line totals shown above. This check passed in the 2026-09-29 automated browser run above. Claude generated `qa-multi-sheet.xlsx` for it in `data/private/qa/` (a `Sales` sheet identical to `qa-valid.xlsx` plus an `Other` sheet with one fictional note). The app's own import code rejects it with `SHEET_SELECTION_AMBIGUOUS`, lists `Sales` and `Other`, and accepts the three `Sales` lines once `Sales` is selected.
+
+**Stored report and snapshot (milestone 6).** Follow [the demo](demo.md). Confirm that the rejected delivery changes nothing and the corrected one is applied. Then open `data/generated/snapshot/biomix-report-snapshot.html` from disk, with the network off if you like: its totals should match the app's for the same filters. A 23-assertion automated browser run of this flow passed on 2026-09-29 ([setup verification](setup-verification.md), milestone 6).
 
 Record pass/fail for each step. If something differs, report the step, expected result, and actual result; a screenshot of these fictional test results can help.
 

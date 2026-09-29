@@ -9,6 +9,8 @@ coverage/
 *.log
 data/private/*
 !data/private/.gitkeep
+# Seeded synthetic feed and its evaluation answer key: reproducible, never committed.
+data/generated/
 *.sqlite*
 *.db
 .claude/

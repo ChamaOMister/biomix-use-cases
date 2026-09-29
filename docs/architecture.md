@@ -9,13 +9,27 @@ ESLint is pinned to 9.39.5 for compatibility with the React plugin bundled by es
 Current layout:
 
 ```text
-src/app/                        page, client workbench, thin route (api/sales-imports)
+src/app/                        page (stored report + XLSX check), thin routes (api/sales-imports, api/sales-feed/deliveries)
 src/server/                     HTTP upload handler (body cap, query parsing, diagnostic logging)
+src/server/db/                  Postgres pool, migration runner, database test support (milestone 4)
+src/server/sales-feed/          delivery endpoint and transactional ingestion (milestone 4)
+src/server/sales-report/        SQL invoiced-sales report and filter options (milestone 4)
+src/server/collections/         SQL scheduled-collections report (milestone 5)
 src/domain/sales-import/        limits, archive pre-flight, structure pre-scan, XLSX adapter, validation, invoices
 src/types/                      declarations for the ExcelJS internal used by the pre-scan
 src/domain/sales-report/        filters, totals, breakdowns, reconciliation, BRL formatting
+src/domain/collections/         installment schedules (terms, cent allocation, due dates) and collections report (milestone 5)
+src/domain/sales-feed/          clean-feed JSON delivery contract, seller territories (milestone 3)
+src/synthetic-data/             seeded synthetic feed generator and answer key (milestone 3), demo rejected delivery (milestone 6)
+src/snapshot/                   downloadable offline report snapshot: data format, renderer, browser entry, builder (milestone 6)
+scripts/                        generator, db:migrate, db:reset, setup:env, feed:send, snapshot:build (run by Node 24's type stripping)
+db/migrations/                  versioned SQL migrations, append-only
+docs/api/                       OpenAPI description of the delivery endpoint
+data/generated/                 generator output (Git-ignored)
 data/fixtures/                  reviewed synthetic demo inputs (not created)
 ```
+
+Modules reachable from `scripts/` import each other with explicit `.ts` extensions (`allowImportingTsExtensions`), because Node's built-in type stripping does not resolve extensionless paths. This avoids adding a TypeScript runner dependency. Such modules may only use erasable TypeScript syntax (no enums, namespaces or constructor parameter properties).
 
 ExcelJS (4.4.0) is the XLSX reader. saxes (5.0.1, ExcelJS's own XML parser) is a direct dependency for the structure pre-scan. jszip (3.10.2, ExcelJS's ZIP reader) is a dev dependency for differential tests. Both were already installed as ExcelJS dependencies, and pinning them adds no packages. The XLSX adapter is isolated in `src/domain/sales-import/xlsx.ts`, which converts cells to a library-independent model before validation. Zod was not added: each field needs a custom strict parser with its own issue code, so a schema library would add a dependency without adding checks. Read identifiers as strings, inspect typed cell values, handle workbook date systems explicitly, and reject unsupported formulas rather than trusting stale cached calculations.
 ## Milestone 2: input limits and the stateless reporting path

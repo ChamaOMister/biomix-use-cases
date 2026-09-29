@@ -1,6 +1,6 @@
 # Architecture decision 002: clean-data feed, Postgres and shared consumers
 
-Status: accepted direction (2026-09-27), not implemented. Details marked *proposed* are reversible until their milestone is reviewed. Supersedes the "start without a database" paragraph of [decision 001](architecture.md).
+Status: accepted direction (2026-09-27). Milestone 3 implemented the JSON delivery contract ([contract](sales-feed-contract.md), [OpenAPI](api/sales-feed.openapi.json)) and the seeded generator ([synthetic data](synthetic-data.md)), [review approved](reviews/milestone-3-review.md) on 2026-09-29. Milestone 4 implemented Postgres, the delivery endpoint and the database-backed report ([database guide](database.md)). Milestone 5 implemented scheduled installments and the collections report ([scheduled collections](collections.md)). Milestone 6 implemented the report snapshot (item 7, [report snapshot](report-snapshot.md)). All three were [review approved](reviews/milestone-4-6-review.md) on 2026-09-29. Headings marked *proposed* record the original proposal; the implemented details are in the linked guides. Supersedes the "start without a database" paragraph of [decision 001](architecture.md).
 
 ## Context
 
@@ -26,13 +26,15 @@ existing XLSX import (unchanged) ───────────────�
    - the feed never deletes. Invoices absent from a delivery stay as they are. Cancelled orders are removed upstream, before delivery.
 
    A delivery is applied in one transaction. If it is rejected or anything fails, stored data does not change.
+
+   **Recorded for Project 1 (maintainer, 2026-09-29; [business decisions](sales-feed-contract.md#project-1-business-decisions)):** the last successfully applied delivery with a new `deliveryId` wins, and the sender is responsible for delivery order; retries keep their `deliveryId` and write nothing. There is no cancellation: removing an invoice from a later delivery does not cancel it, and cancelling an already stored invoice is outside Project 1. Source revisions, stale-update rejection and cancellation or void events are not built.
 5. **Seeded synthetic generator.** A deterministic generator (same seed → same data) produces the clean, fictional dataset as one delivery per closed month. Replaying the deliveries in order simulates the feed operating over time. The generated output is reproducible and is not committed. Known planted scenarios live in a separate evaluation answer key that the app, MCP tools and agents cannot read.
 6. **MCP comes later.** The Project 2 copilot will reach the database through an MCP server that offers fixed, read-only tools running deterministic queries, not free-form SQL. Nothing MCP-specific is built in Project 1; the schema only needs to answer such questions easily.
 7. **Downloadable report snapshot.** Reviewers can see the finished report without installing anything: a single self-contained HTML file that opens by double-click, offline. It embeds the synthetic invoices as stored after replaying the deliveries, plus the same pure TypeScript report and collections modules the application uses, so there is no second implementation of the arithmetic. Filters, totals, breakdowns, reconciliation checks and scheduled collections work in the file. It is read-only and labeled as synthetic data with its as-of date. It never includes the evaluation answer key. Next.js does not produce a file that works from disk, so a small bundler (esbuild, a development dependency) builds the snapshot; the application is unaffected. Like all generated output, the file is not committed. CI builds it from the seed and attaches it to a GitHub Release, and the README links to the download.
 
 ## JSON delivery contract (proposed)
 
-Money is integer BRL cents. Dates are ISO calendar dates. The payload is organised by invoice, with lines nested inside, preserving the difference between invoices and invoice lines.
+Specified and validated in milestone 3; the rules, error codes and defaults are in [the contract](sales-feed-contract.md). Money is integer BRL cents. Dates are ISO calendar dates. The payload is organised by invoice, with lines nested inside, preserving the difference between invoices and invoice lines.
 
 ```json
 {
@@ -65,7 +67,7 @@ The endpoint checks the contract, as any API does: required fields, types, `line
 
 Invoice numbers identify invoices across all deliveries, not only within one. Clean data guarantees that uniqueness. If a source ever reuses numbers by series or year, the contract needs an explicit invoice identity field first ([data contract](data-contract.md), default 6).
 
-## Tables (proposed)
+## Tables (implemented in milestones 4 and 5)
 
 | Table | Grain | Notes |
 | --- | --- | --- |
@@ -73,10 +75,10 @@ Invoice numbers identify invoices across all deliveries, not only within one. Cl
 | `territory_cities` | city per business unit | city, state, business unit, seller; at most one seller per city and business unit |
 | `customers` | customer | ID, name, segment, city, state, owning seller; upserted, owner never changes through the feed |
 | `products` | product | ID, name, category, business unit; upserted |
-| `feed_deliveries` | delivery | delivery ID, received time, invoices added/replaced, line count, totals, billing-date range, status |
+| `feed_deliveries` | delivery | delivery ID, payload hash, received time, status (applied or rejected); applied: invoices added/replaced, line count, totals, billing-date range; rejected: the located errors |
 | `invoices` | invoice | number (unique), billing date, customer, seller, unit, payment schedule, last delivery that wrote it |
-| `invoice_lines` | invoice product line | quantity, unit price, amount, commission (cents) |
-| `scheduled_installments` | contractual installment | due date, amount in cents; milestone 5; not actual payments |
+| `invoice_lines` | invoice product line | line number within the invoice, product, quantity, unit price, amount, commission (cents) |
+| `scheduled_installments` | contractual installment | installment number, due date, amount in cents; computed in TypeScript on add or replace (milestone 5); not actual payments |
 
 Replacing an invoice deletes its lines and installments and inserts the delivered ones. Sellers, customers and products are reference data and are upserted, never deleted by the feed.
 

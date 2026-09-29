@@ -93,6 +93,124 @@ Fix: `workbook-structure.ts` decodes every merged range, data-validation piece a
 
 Before calling the environment Codespaces-verified, create a fresh Codespace using the README steps, run the app/checks there, and replace that limitation with the actual result. Before calling Project 1 complete, collect the business evidence in `review.md`.
 
+## Milestone 3 (delivery contract + synthetic generator), 2026-09-29
+
+| Check | Result |
+| --- | --- |
+| Territory sources | pt.wikipedia pages fetched in the Codespace (IBGE API and RJ government sites unreachable): ES 78 (matches IBGE's count), Zona da Mata 142 (IBGE microregion table), Grande São Paulo 39, bordering lists for the named seat cities. Região Serrana (15) follows the official list supplied by the maintainer. See `sales-feed-contract.md` |
+| `npm run generate:data` (default seed 2026) | 44 closed-month deliveries + pending 2026-09; 6,468 invoices, 19,361 lines, 305 customers after replay; annual deviation +0.04% / −0.03% / −0.06% / −0.10%; Agro 59.98–60.02%; about 1 s (figures after the R1 correction below) |
+| Generated output | `data/generated/` confirmed Git-ignored with `git check-ignore` |
+| Mutation spot-check | Half-down commission rounding, no territory check, no duplicate-invoice check, missed season not planted, customers placed in another seller's territory: each made at least one test fail. Restored |
+| `npm run check` | Exit 0: ESLint, typegen + TypeScript, 313 tests in 13 files, production build |
+
+### R1 correction (reduced purchases), 2026-09-29
+
+Review R1 found that the planted reduced-purchases accounts were not guaranteed to buy less: seed 28 showed +10.52%. The two accounts' 2026 orders are now drawn after all other orders, against 40% of the account's drawn sales from 1 January to 25 September 2025, then nudged to within 0.1%. These invoices are locked, so splits, corrections and calibration never change them. The generator fails if the realized ratio is more than 0.02 from 0.4. The answer-key description states the measured change and periods.
+
+| Check | Result |
+| --- | --- |
+| Seed probe (0–39, 2026, 4294967295), in memory | Every reduced account between −59.96% and −60.04%; every unit-year within 0.10% of target. Seed 8: C0175 Agro −60.01%, C0233 Home & Garden −60.01%. Seed 28: C0033 Agro −59.97%, C0086 Home & Garden −60.03% |
+| New regressions (seeds 2026, 8, 28) | Recompute both periods from replayed invoices and match the answer key; ratio 0.4 ± 0.02; change percent and description match the measured figures; reduced accounts are never split or corrected; unit-year targets within 1% |
+| Mutation check | Restoring the old weight-only reduction made the reduction test fail for all three seeds. Restored |
+| `npm run check` | Exit 0: ESLint, typegen + TypeScript, 324 tests in 13 files, production build |
+
+Not run: hosted CI, a fresh Codespace, and any endpoint or database behavior (milestone 4). The generator's determinism was checked on Node 24.21.0 only; other Node/V8 versions are expected to match, because the generator uses 32-bit integer random numbers, basic IEEE-754 arithmetic without transcendental `Math` functions, and UTC dates. That was not tested.
+
+## Milestone 4 (Postgres and delivery ingestion), 2026-09-29
+
+Run in the existing Codespace, which predates the Postgres dev-container service. For these checks Postgres 17.11 was installed into the running container from the PGDG apt repository, with a local `biomix` role and database matching the dev-container settings. The compose-based dev container itself was not built (no Docker in this environment).
+
+| Check | Result |
+| --- | --- |
+| `npm install --save-exact pg@8.23.0`, `npm install --save-dev --save-exact @types/pg@8.23.1` | Lockfile updated |
+| `npm run db:migrate` (twice) | First run applied `0001_sales_feed.sql` and synced the reference data; the second applied nothing |
+| HTTP flow on `next start` against the dev database | The existing `data/generated/` (written before the Região Serrana spelling fix) was rejected at 2023-08: `CITY_OUTSIDE_TERRITORY` for "Trajano de Moraes"; nothing from it was stored. After `npm run db:reset -- --yes` and `npm run generate:data`, all 44 closed months and the pending delivery were applied: 6,468 invoices, 19,361 lines, 7 replacements. Stored yearly sales equal `summary.json` to the cent. Resending 2025-07 returned the original result with `Idempotent-Replayed`. A delivery with a changed line amount → 422 with located errors, stored data unchanged. A reused delivery ID with different content → 409. Server logs showed IDs, counts and error codes only |
+| Rendered report (`GET /` with filters) | Totals R$ 87.963.059,70 / 6.468 invoices / 19.361 lines; Agro 2025 equals a direct SQL sum; the product filter shows the line-scope note; an invalid date shows the period error; an empty period shows zero totals |
+
+| Mutation spot-check | Each of these made at least one test fail: not deleting a replaced invoice's old lines, skipping the payload-hash comparison, not recording rejections, dropping the stored product-unit or customer-owner lookup, no transaction, no advisory lock (caught only after the concurrency tests were changed to queue deliveries behind a held lock), counting lines as invoices, applying the product filter to whole invoices, an exclusive upper date bound. Restored |
+| Test-database guard | Without `DATABASE_URL`: 34 database tests skipped with a visible warning. With `CI=1` and no `DATABASE_URL`: the run fails. Test schemas are dropped after each run (none left behind) |
+| `npm audit --omit=dev` | The same 2 moderate findings as milestone 1 (`uuid` via ExcelJS); `pg` adds none |
+| `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, 376 tests in 16 files, production build (adds dynamic route `/api/sales-feed/deliveries`) |
+
+Not run: building the compose-based dev container or a fresh Codespace, hosted CI with the Postgres service, interactive browser use of the report filters (the page was checked through its HTML), and a load test with deliveries near the contract's size limits.
+
+## Milestone 5 (scheduled collections), 2026-09-29
+
+Implemented while milestone 4 was still awaiting review, at the maintainer's request. Both milestones are to be reviewed together. Run in the same Codespace and Postgres 17 as milestone 4, on Node 24.21.0.
+
+| Check | Result |
+| --- | --- |
+| `npm run db:migrate` on the milestone 4 development database | Applied `0002_scheduled_installments.sql`; the database held no invoices, so nothing was backfilled. The backfill of existing invoices is covered by a database test |
+| HTTP flow on `npm run dev` | `npm run generate:data`, then `npm run feed:send` for the 44 closed months and the pending delivery: all applied, 7 replacements |
+| Independent SQL reconciliation of the stored data | 6,468 invoices, 12,757 installments. Per term: Upfront 1,456 / 1,456, 30 Days 2,279 / 2,279, 30/60/90 1,910 / 5,730, Upfront/30/60/90 823 / 3,292. Every invoice's installments sum to its lines (0 mismatches); at most 1 cent between an invoice's installments; scheduled total R$ 87.963.059,70 = invoiced sales |
+| Rendered page (`GET /` with filters) | Separate collections section; unfiltered totals equal the invoiced sales with the reconciliation check passing. Agro billed 2025-12-01 to 2025-12-31: 31 invoices, 59 installments, R$ 478.157,60, due from 2025-12 to 2026-03. Product filter: the explanatory note instead of collections |
+| Mutation spot-check | Remainder to the last installments: 14 tests failed. Due dates through a local-time `Date` plus 24-hour steps: the `America/New_York` time-zone test and the range test failed. Restored |
+| `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, 441 tests in 18 files, production build |
+
+Not run: interactive browser use (the page was checked through its HTML), a fresh Codespace, hosted CI, and the backfill on a database that actually holds milestone 4 invoices (only in the test schema).
+
+## Milestone 6 (verification and packaging), 2026-09-29
+
+Implemented while milestones 4 and 5 were awaiting review, at the maintainer's request. All three are to be reviewed together. Same Codespace, Postgres 17 and Node 24.21.0.
+
+| Check | Result |
+| --- | --- |
+| `npm install --save-dev --save-exact esbuild@0.28.2` | Lockfile updated. npm skipped esbuild's install script; esbuild works without it, since the binary comes from its platform package. `npm audit --omit=dev` is unchanged (development dependency) |
+| Demo flow on `npm run dev` ([demo](demo.md)) | After `db:reset`: 44 closed months applied. `feed/demo/2026-09-rejected.json` → rejected, 2 errors (`LINE_AMOUNT_MISMATCH` at `/invoices/145/lines/0/lineAmountCents`, `CITY_OUTSIDE_TERRITORY` at `/invoices/2/customer/city`), nothing stored. The pending 2026-09 delivery → applied, 145 added, 1 replaced, 428 lines |
+| Manual reconciliation | For each of the 8 unit-years, the invoiced sales in `feed/summary.json`, a direct SQL sum over the dev database, the snapshot's embedded data through `buildSalesReport`, and its scheduled collections through `buildCollectionsReport` are equal to the cent (Agro 2025: R$ 15.584.715,50). Stored installments: 12,757 summing to R$ 87.963.059,70, equal to the snapshot's |
+| Browser run | A throwaway headless Chromium (Playwright 1.63.0, `chrome-headless-shell`), with its runtime libraries and fonts unpacked into a temporary session folder, not the container or the project. 23 assertions, all passing. **App:** unfiltered totals, `45 deliveries applied · 1 rejected`, both checks passing, Agro 2025 through the form with the filters in the URL, product filter note, Clear filters, no page errors. **Snapshot from `file://` in an offline context:** same totals as the app unfiltered and for Agro 2025, product note, period error, Clear filters, no request besides the file itself, no console errors or policy violations, no horizontal scroll at 390 px (**incorrect**: the review measured a 497 px page, R3; corrected below), totals readable with JavaScript disabled. Screenshots were checked in light and dark mode and deleted with the folder |
+| Mutation spot-check | Removing the script's change listener: the browser-filter test failed. Leaving the pending delivery out of the snapshot: 3 tests failed. Restored |
+| `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, 462 tests in 20 files, production build |
+
+**Hosted CI, 2026-09-29.** Branch `milestones-3-6` (commit `9fe741e`) pushed to GitHub. "Foundation checks" run 36596471395 succeeded: `npm ci`, `npm run db:migrate` against the Postgres 17 service, `npm run check` (lint, typecheck, the full behavior suite with the database tests, build), `npm run snapshot:build`, and the `report-snapshot` artifact upload (209,551 bytes compressed, kept until 2026-10-29). The `release-snapshot` job was skipped, as intended for a branch push. The run's logs were not read, so the hosted test count is not recorded here.
+
+Not run: a fresh Codespace, the tag-triggered release job and the published download link (no tag has been pushed), and reviewer feedback. These remain the open items of milestone 6.
+
+## Fresh Codespace, 2026-09-29
+
+A new Codespace created by the maintainer from branch `milestones-3-6` (commit `aff1bbe`), built from the compose-based dev container: an Ubuntu 24.04 workspace container and a `postgres:17` service. Nothing was installed by hand. The checks below ran from its terminal.
+
+| Check | Result |
+| --- | --- |
+| Toolchain | `node --version` → `v24.21.0` (matches `.nvmrc`), npm 11.19.0 |
+| Creation steps | `node_modules/` present, `.env.local` written by `setup:env` (mode 600), `DATABASE_URL` set by the dev container |
+| Postgres | PostgreSQL 17.11 reached at `localhost:5432` through the shared network. `npm run db:migrate` → `0 applied, 2 already applied`, so the creation step had migrated it. No invoices stored |
+| `npm run check` | Exit 0: ESLint, typegen + TypeScript, 462 tests in 20 files, none skipped (the database tests ran), production build |
+| `npm run generate:data` | Same figures as the earlier Codespace: 6,468 invoices, 19,361 lines, 305 customers, annual deviation +0.04% / −0.03% / −0.06% / −0.10% |
+| Demo flow on `npm run dev` ([demo](demo.md)) | 44 closed months applied. `2026-09-rejected.json` → rejected, `LINE_AMOUNT_MISMATCH` at `/invoices/145/lines/0/lineAmountCents` and `CITY_OUTSIDE_TERRITORY` at `/invoices/2/customer/city`. Pending 2026-09 → applied, 145 added, 1 replaced, 428 lines. Sent again → original result, marked already received |
+| SQL reconciliation | 6,468 invoices, 19,361 lines and 12,757 installments; lines and installments each sum to R$ 87.963.059,70. No test schemas left behind |
+| Rendered report (`GET /`, checked through its HTML) | `45 deliveries applied · 1 rejected`, R$ 87.963.059,70 unfiltered. `AGRO`, 2025-01-01 to 2025-12-31 → R$ 15.584.715,50, equal to a direct SQL sum. An invalid date shows the period error. The dev server log for the rejection held only IDs, counts and error codes |
+| `npm run snapshot:build` | Wrote the 0.90 MiB snapshot |
+| Port privacy | An unauthenticated request to the forwarded port 3000 address → 302 to GitHub sign-in, so the port is not public |
+| XLSX QA files | The Git-ignored `data/private/qa/` files do not carry over to a new Codespace. They were recreated to the layout in [manual QA](manual-qa.md) and posted to `/api/sales-imports`: `qa-valid.xlsx` → accepted, 3 lines, R$ 2.830,60, commission R$ 141,53. `qa-invalid.xlsx` → `FIELD_REQUIRED` at Sales · X4. `qa-multi-sheet.xlsx` → `SHEET_SELECTION_AMBIGUOUS` listing `Sales` and `Other`; with `sheet=Sales` → accepted |
+
+Waived by the maintainer on 2026-09-29, not performed: opening the forwarded HTTPS preview in a browser, the Ports panel showing **Private**, the [manual browser QA](manual-qa.md) steps through that preview, hot reload of a temporary label edit, and stop/resume followed by a restarted dev server. The browser flows themselves passed earlier in headless Chromium (milestone 6 above and [manual QA](manual-qa.md)), but not through a Codespace's forwarded address.
+
+## Milestones 4–6 review corrections, 2026-09-29
+
+Corrections for the [milestones 4–6 review](reviews/milestone-4-6-review.md) (R1, R2, R3), on branch `milestones-3-6` from `53f68e3`, uncommitted. Same Codespace, Postgres 17.11 and Node 24.21.0. Probes, snapshots and logs stayed under `/tmp`; database probes used new schemas and dropped them. The development data was only read.
+
+| Check | Result |
+| --- | --- |
+| R1 regressions without the fix | 5 of the new validator, ingestion and endpoint tests fail; all pass with it |
+| R2 regressions with the old hash | 6 of the new hash, ingestion and endpoint tests fail; all pass with the new hash |
+| `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, **477 passed, 0 skipped** in 20 files, production build |
+| R1 reproduction | `REVIEW-\ud800` (100 cents) and `REVIEW-\ud801` (200 cents): both `TEXT_INVALID` at `/invoices/0/invoiceNumber`, directly and over HTTP (`422`). Nothing stored. A customer name with `\ud800` over HTTP → `422 TEXT_INVALID` at `/invoices/0/customer/name` |
+| R2 reproduction | Reordered top-level and nested fields → original result, replayed, directly and over HTTP (`200`, and `422` for a rejected delivery). Changed content under the same ID → `409` |
+| Existing development receipts | All 46 generated deliveries match their stored receipt only by the earlier field-order hash. Ingestion still accepts that hash, so `feed:send` resends replay as before ([database guide](database.md)) |
+| R3 browser check | Headless Chromium, snapshot from `file://`, offline, under its policy. Before the fix: 497 px at 390 wide (unfiltered and Agro 2025), 472 px for one customer. After: 390 px in every view (unfiltered, Agro 2025, one customer, one product), wide tables scroll inside their wrappers. 768, 1280 and 1440 px unchanged and fitting. Only the file was requested; no policy violations or page errors. Totals unchanged |
+| Live report page | Measured for comparison only: 390 px at 390 wide, unfiltered and Agro 2025, so R3 does not affect it |
+
+The snapshot's bytes changed: the CSS and, through the bundled contract labels, minified names in the script. The embedded data is unchanged.
+
+These corrections were committed as `f871973` (R1), `5a11390` (R2) and `f311708` (R3), with the maintainer's feed decisions in `0c3d1a0`.
+
+## Milestones 4–6 review approval, 2026-09-29
+
+Codex re-reviewed `0c3d1a0` and approved milestones 4–6, closing R1–R3 ([review](reviews/milestone-4-6-review.md)). Its independent checks: `npm run check` exit 0 with 477 passed / 0 skipped in 20 files, the R1/R2 probes over HTTP on a disposable schema, and the snapshot at 390, 768, 1280 and 1440 px offline under its policy. Hosted CI run [36617438835](https://github.com/ChamaOMister/biomix-use-cases/actions/runs/36617438835) succeeded for `0c3d1a0`; `release-snapshot` was skipped, as for any branch push.
+
+Still open after approval: the tag-triggered release job, the published download link and a check of the downloaded file. The browser steps waived for the fresh Codespace remain waived, not performed. The review's two non-blocking suggestions are follow-ups ([milestones](milestones.md#project-1-status-2026-09-29)).
+
 ## Codespaces workflow update, 2026-09-27
 
 Codespaces is now the primary documented environment. The existing devcontainer requests 2 CPUs / 8 GB RAM, waits for `npm ci` before setup completes, and opens the forwarded app port in the browser. Port visibility is checked in GitHub's Ports panel rather than relying on the removed, undocumented `portsAttributes.visibility` property. See [the cloud workflow](codespaces.md).

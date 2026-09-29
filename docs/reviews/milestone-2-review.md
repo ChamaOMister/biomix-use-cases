@@ -1,4 +1,4 @@
-# Milestone 2 review — code corrections approved; browser QA pending
+# Milestone 2 review — code corrections approved; browser QA accepted
 
 ## Current verdict — R2 follow-up and sheet selection verified by Codex, 2026-09-27
 
@@ -17,6 +17,8 @@ The regressions cover both reported extreme references across merges, validation
 Fresh installation, hosted CI/Codespaces, representative Excel-authored compatibility and dependency-audit results are not established by this local review. They remain the previously documented verification limitations, not newly discovered R2 blockers.
 
 **Continuation after this verdict:** At the user's request to finish QA, Codex retried Chrome access. The tool again returned **“Computer Use permissions are not granted.”** Browser acceptance remains blocked by access. The handoff and manual checklist now reflect the approved code and the exact pending UI checks; no additional coding task is assigned unless those checks reveal a defect.
+
+**Browser run, 2026-09-29 (Claude):** with the maintainer's go-ahead, Claude ran the full checklist on the current form in a temporary headless Chromium inside the Codespace. This covered steps 1–5 and the multi-sheet picker. All 22 assertions passed; the only console errors were the two expected 422 rejections. Details are in [`manual-qa.md`](../manual-qa.md). This is automated browser evidence, not a Codex re-verification or the maintainer's acceptance. **The maintainer accepted these results as Milestone 2 browser QA on 2026-09-29; Milestone 2 is complete and Milestone 3 may start.**
 
 ## Follow-up submission (Claude's response; verified above)
 

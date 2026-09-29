@@ -1,0 +1,41 @@
+/* Report snapshot: the application's look, self-contained (no web fonts or external files). */
+:root { color-scheme: light dark; --bg: #f5f6ef; --ink: #16392e; --muted: #52645b; --green: #25674c; --line: #d6ded3; --card: #fffef9; --field: #ffffff; --red: #9b2c2c; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111a16; --ink: #e3ece6; --muted: #a3b3aa; --green: #7cc4a0; --line: #2d3b34; --card: #17231d; --field: #1d2a23; --red: #f08a8a; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
+main { max-width: 1180px; margin: auto; padding: 0 40px; }
+header { padding: 32px 0 20px; border-bottom: 1px solid var(--line); }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--green); margin: 0; }
+h1 { margin: 12px 0; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -1px; font-weight: 600; }
+h2 { font-size: 18px; margin: 0 0 16px; }
+h3 { font-size: 15px; margin: 22px 0 10px; }
+.notice { margin: 20px 0; background: color-mix(in srgb, var(--green) 12%, var(--card)); padding: 16px 18px; font-size: 14px; line-height: 1.6; border-left: 3px solid var(--green); }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 24px; margin: 0 0 20px; font-size: 14px; line-height: 1.5; }
+.muted { color: var(--muted); }
+.error { color: var(--red); font-weight: 600; }
+label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+input[type="date"], select { font: inherit; font-weight: 400; height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); min-width: 0; }
+button { font: inherit; font-weight: 700; padding: 10px 18px; border-radius: 6px; border: 1px solid var(--green); background: var(--green); color: var(--card); cursor: pointer; }
+button.secondary { background: transparent; color: var(--green); font-weight: 600; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end; }
+.filters h2 { grid-column: 1 / -1; margin: 0; }
+.check { font-weight: 600; }
+.check.ok { color: var(--green); }
+.check.bad { color: var(--red); }
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 0 0 12px; }
+.totals div { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; background: var(--field); }
+.totals dt { font-size: 12px; color: var(--muted); }
+.totals dd { margin: 6px 0 0; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+/* Grid children may shrink below their tables' width, so a wide table scrolls inside .table-wrap, not the page. */
+.breakdowns > * { min-width: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; color: var(--muted); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+footer { margin-top: 40px; padding: 24px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.6; }
+@media (max-width: 700px) { main { padding: 0 16px; } .panel { padding: 18px; } .breakdowns { grid-template-columns: minmax(0, 1fr); } }

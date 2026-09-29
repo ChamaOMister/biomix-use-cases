@@ -1,0 +1,373 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Biomix clean sales feed",
+    "version": "0.1.0",
+    "description": "Deliveries of clean, validated invoices into the Biomix sales workbench (architecture decision 002). The request contract and its located errors are implemented in `src/domain/sales-feed/contract.ts` (milestone 3); the endpoint, Postgres storage and the development API key in `src/server/sales-feed/` (milestone 4). Money is integer BRL cents; dates are ISO calendar dates. See docs/sales-feed-contract.md."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server (in Codespaces, the forwarded port 3000 address)"
+    }
+  ],
+  "paths": {
+    "/api/sales-feed/deliveries": {
+      "post": {
+        "operationId": "submitDelivery",
+        "summary": "Submit one delivery of clean invoices",
+        "description": "The invoice is the record, identified by its invoice number across all deliveries. An invoice number not yet stored is added, whatever its billing date. An invoice number already stored is replaced as a whole: attributes and full set of lines. Invoices absent from a delivery are left as they are; the feed never deletes. A delivery is applied in one transaction: any contract error rejects the whole delivery and stored data does not change. Besides the payload's own rules, a customer already stored keeps its owning seller and a product already stored keeps its business unit. Deliveries are applied one at a time. Repeating a deliveryId with the same content (whitespace and object field order do not matter; array order and values do) returns the original result (200 or 422, with the header Idempotent-Replayed: true) without writing again; a rejected delivery is recorded too, so a corrected delivery needs a new deliveryId. Repeating a deliveryId with different content is refused (409). A payload without a valid deliveryId is rejected (422) and not recorded. If storing fails (500), nothing is recorded and the same delivery can be sent again. By an internal management convention each delivery carries the invoices of the last closed month; the endpoint does not enforce that convention. The last applied delivery wins: invoice versions are not compared, so the sender is responsible for delivery order, and an older invoice sent under a new deliveryId overwrites a later correction. Leaving an invoice out of a later delivery does not cancel it; cancelled invoices must be excluded before their first delivery.",
+        "security": [{ "developmentApiKey": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Delivery" },
+              "examples": {
+                "oneInvoice": {
+                  "summary": "One Agro invoice with one line (fictional data)",
+                  "value": {
+                    "deliveryId": "8b0c4c1e-4c7a-4f43-9d8e-2a3f0e6b9a11",
+                    "invoices": [
+                      {
+                        "invoiceNumber": "000123",
+                        "billingDate": "2025-06-12",
+                        "customer": {
+                          "id": "C0042",
+                          "name": "Fictional Agro Ltda",
+                          "segment": "agricultural reseller",
+                          "city": "Viçosa",
+                          "state": "MG"
+                        },
+                        "sellerId": "S04",
+                        "businessUnit": "Agro",
+                        "paymentSchedule": "3 installments (30, 60 and 90 days)",
+                        "lines": [
+                          {
+                            "productId": "P007",
+                            "productName": "Fictional Foliar 1 L",
+                            "productCategory": "Foliar fertilizer",
+                            "packageQuantity": 12,
+                            "unitPriceCents": 8990,
+                            "lineAmountCents": 107880,
+                            "commissionAmountCents": 5394
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The delivery was applied, or this deliveryId was already applied (original result, nothing written again).",
+            "headers": { "Idempotent-Replayed": { "$ref": "#/components/headers/IdempotentReplayed" } },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryApplied" } }
+            }
+          },
+          "400": {
+            "description": "JSON_INVALID: the body is empty, incomplete, not UTF-8 or not valid JSON.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedError" } } }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: the X-Api-Key header is missing or wrong.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedError" } } }
+          },
+          "409": {
+            "description": "DELIVERY_ID_REUSED: this deliveryId was already received with different content. Nothing was written; send a changed delivery under a new deliveryId.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedError" } } }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE: the body exceeds 16 MiB.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedError" } } }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: Content-Type is not application/json (UTF-8).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedError" } } }
+          },
+          "422": {
+            "description": "The delivery breaks the contract and was rejected whole; stored data is unchanged. Also returned for a repeat of a rejected deliveryId.",
+            "headers": { "Idempotent-Replayed": { "$ref": "#/components/headers/IdempotentReplayed" } },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryRejected" } }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: storing failed. The transaction was rolled back and nothing was recorded; the same delivery can be sent again.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedError" } } }
+          },
+          "503": {
+            "description": "FEED_NOT_CONFIGURED (no API key configured on the server) or DATABASE_UNAVAILABLE (no DATABASE_URL).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedError" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "headers": {
+      "IdempotentReplayed": {
+        "description": "Present with the value true when the response is the stored original result of an earlier request with this deliveryId.",
+        "schema": { "const": "true" }
+      }
+    },
+    "securitySchemes": {
+      "developmentApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "Development-only key configured in the Codespace; not an authentication system."
+      }
+    },
+    "schemas": {
+      "Delivery": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["deliveryId", "invoices"],
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "description": "Chosen by the sender; lowercase canonical UUID. Identifies the delivery for idempotent resending."
+          },
+          "invoices": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5000,
+            "items": { "$ref": "#/components/schemas/Invoice" },
+            "description": "Each invoice number appears at most once per delivery."
+          }
+        }
+      },
+      "Invoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "invoiceNumber",
+          "billingDate",
+          "customer",
+          "sellerId",
+          "businessUnit",
+          "paymentSchedule",
+          "lines"
+        ],
+        "properties": {
+          "invoiceNumber": {
+            "$ref": "#/components/schemas/Identifier",
+            "description": "Unique across all deliveries; a string, so leading zeroes are kept."
+          },
+          "billingDate": { "type": "string", "format": "date", "description": "A real calendar date, YYYY-MM-DD, early enough that every installment of the payment schedule falls due by 9999-12-31." },
+          "customer": { "$ref": "#/components/schemas/Customer" },
+          "sellerId": {
+            "$ref": "#/components/schemas/Identifier",
+            "description": "A known seller (S01–S05). The customer's city must be inside this seller's territory, and a stored customer keeps its owning seller."
+          },
+          "businessUnit": {
+            "type": "string",
+            "enum": ["Agro", "Home & Garden"],
+            "description": "Must be the seller's business unit."
+          },
+          "paymentSchedule": {
+            "type": "string",
+            "enum": [
+              "Upfront",
+              "30 Days",
+              "3 installments (30, 60 and 90 days)",
+              "4 installments (Upfront, 30, 60 and 90 days)"
+            ],
+            "description": "Contractual terms. Billing-relative day offsets: [0], [30], [30, 60, 90], [0, 30, 60, 90]."
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": { "$ref": "#/components/schemas/Line" },
+            "description": "The invoice's full set of product lines. The same product may appear on more than one line."
+          }
+        }
+      },
+      "Customer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "segment", "city", "state"],
+        "description": "Within one delivery, the same customer ID must carry the same attributes and seller.",
+        "properties": {
+          "id": { "$ref": "#/components/schemas/Identifier" },
+          "name": { "$ref": "#/components/schemas/Text" },
+          "segment": { "$ref": "#/components/schemas/Text" },
+          "city": { "$ref": "#/components/schemas/Text" },
+          "state": {
+            "$ref": "#/components/schemas/Identifier",
+            "description": "Two-letter state code (UF); city and state together must be in the seller's territory."
+          }
+        }
+      },
+      "Line": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "productId",
+          "productName",
+          "productCategory",
+          "packageQuantity",
+          "unitPriceCents",
+          "lineAmountCents",
+          "commissionAmountCents"
+        ],
+        "description": "Within one delivery, the same product ID must carry the same name and category and belong to one business unit.",
+        "properties": {
+          "productId": { "$ref": "#/components/schemas/Identifier" },
+          "productName": { "$ref": "#/components/schemas/Text" },
+          "productCategory": { "$ref": "#/components/schemas/Text" },
+          "packageQuantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "Number of packages, not mass or volume."
+          },
+          "unitPriceCents": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "lineAmountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "Exactly packageQuantity × unitPriceCents."
+          },
+          "commissionAmountCents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "5% of lineAmountCents, rounded half-up to the cent."
+          }
+        }
+      },
+      "Identifier": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "description": "Non-empty, well-formed Unicode (no unpaired surrogates, such as a lone \\ud800 escape) in NFC form, no surrounding spaces or control characters."
+      },
+      "Text": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "description": "Non-empty, well-formed Unicode (no unpaired surrogates, such as a lone \\ud800 escape) in NFC form, no surrounding spaces or control characters."
+      },
+      "DeliveryApplied": {
+        "type": "object",
+        "required": [
+          "deliveryId",
+          "status",
+          "invoicesAdded",
+          "invoicesReplaced",
+          "lineCount",
+          "salesCents",
+          "commissionCents",
+          "firstBillingDate",
+          "lastBillingDate"
+        ],
+        "properties": {
+          "deliveryId": { "type": "string", "format": "uuid" },
+          "status": { "const": "applied" },
+          "invoicesAdded": { "type": "integer", "minimum": 0 },
+          "invoicesReplaced": { "type": "integer", "minimum": 0 },
+          "lineCount": { "type": "integer", "minimum": 1 },
+          "salesCents": { "type": "integer", "minimum": 1 },
+          "commissionCents": { "type": "integer", "minimum": 0 },
+          "firstBillingDate": { "type": "string", "format": "date" },
+          "lastBillingDate": { "type": "string", "format": "date" }
+        }
+      },
+      "DeliveryRejected": {
+        "type": "object",
+        "required": ["deliveryId", "status", "errors", "truncated"],
+        "properties": {
+          "deliveryId": {
+            "type": ["string", "null"],
+            "description": "Null when the payload has no valid deliveryId."
+          },
+          "status": { "const": "rejected" },
+          "errors": {
+            "type": "array",
+            "maxItems": 200,
+            "items": { "$ref": "#/components/schemas/DeliveryError" }
+          },
+          "truncated": { "type": "boolean", "description": "True when more errors were found than returned." }
+        }
+      },
+      "DeliveryError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "path", "invoiceNumber", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "TYPE_INVALID",
+              "FIELD_REQUIRED",
+              "FIELD_UNKNOWN",
+              "DELIVERY_ID_INVALID",
+              "TEXT_INVALID",
+              "DATE_INVALID",
+              "LIST_EMPTY",
+              "LIST_TOO_LONG",
+              "QUANTITY_INVALID",
+              "MONEY_INVALID",
+              "LINE_AMOUNT_MISMATCH",
+              "COMMISSION_MISMATCH",
+              "BUSINESS_UNIT_UNKNOWN",
+              "PAYMENT_SCHEDULE_UNKNOWN",
+              "SELLER_UNKNOWN",
+              "BUSINESS_UNIT_SELLER_MISMATCH",
+              "CITY_OUTSIDE_TERRITORY",
+              "CUSTOMER_SELLER_MISMATCH",
+              "CUSTOMER_ATTRIBUTE_CONFLICT",
+              "PRODUCT_ATTRIBUTE_CONFLICT",
+              "INVOICE_DUPLICATE",
+              "TOTAL_OUT_OF_RANGE"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "JSON Pointer to the offending value, e.g. /invoices/3/lines/0/lineAmountCents."
+          },
+          "invoiceNumber": {
+            "type": ["string", "null"],
+            "description": "The invoice's number when it could be read."
+          },
+          "message": { "type": "string", "description": "Explains the rule; never quotes payload values." },
+          "relatedPath": {
+            "type": "string",
+            "description": "Another location involved, e.g. the first occurrence of a repeated invoice number."
+          }
+        }
+      },
+      "FeedError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "code", "message"],
+        "properties": {
+          "status": { "const": "error" },
+          "code": {
+            "type": "string",
+            "enum": [
+              "JSON_INVALID",
+              "UNAUTHORIZED",
+              "DELIVERY_ID_REUSED",
+              "PAYLOAD_TOO_LARGE",
+              "UNSUPPORTED_MEDIA_TYPE",
+              "INTERNAL_ERROR",
+              "FEED_NOT_CONFIGURED",
+              "DATABASE_UNAVAILABLE"
+            ]
+          },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}
