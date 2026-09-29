@@ -1,6 +1,6 @@
 # Scheduled collections
 
-Status: implemented in milestone 5, following [decision 002](architecture-002-clean-data-platform.md). Awaiting review.
+Status: implemented in milestone 5, following [decision 002](architecture-002-clean-data-platform.md), [review approved](reviews/milestone-4-6-review.md) on 2026-09-29.
 
 Scheduled collections are the contractual installments of each stored invoice: what its payment schedule says the customer owes, and when. They are **not** actual payments, receipts or open balances; nothing in the feed records payments.
 

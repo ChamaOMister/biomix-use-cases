@@ -203,6 +203,14 @@ Corrections for the [milestones 4–6 review](reviews/milestone-4-6-review.md) (
 
 The snapshot's bytes changed: the CSS and, through the bundled contract labels, minified names in the script. The embedded data is unchanged.
 
+These corrections were committed as `f871973` (R1), `5a11390` (R2) and `f311708` (R3), with the maintainer's feed decisions in `0c3d1a0`.
+
+## Milestones 4–6 review approval, 2026-09-29
+
+Codex re-reviewed `0c3d1a0` and approved milestones 4–6, closing R1–R3 ([review](reviews/milestone-4-6-review.md)). Its independent checks: `npm run check` exit 0 with 477 passed / 0 skipped in 20 files, the R1/R2 probes over HTTP on a disposable schema, and the snapshot at 390, 768, 1280 and 1440 px offline under its policy. Hosted CI run [36617438835](https://github.com/ChamaOMister/biomix-use-cases/actions/runs/36617438835) succeeded for `0c3d1a0`; `release-snapshot` was skipped, as for any branch push.
+
+Still open after approval: the tag-triggered release job, the published download link and a check of the downloaded file. The browser steps waived for the fresh Codespace remain waived, not performed. The review's two non-blocking suggestions are follow-ups ([milestones](milestones.md#project-1-status-2026-09-29)).
+
 ## Codespaces workflow update, 2026-09-27
 
 Codespaces is now the primary documented environment. The existing devcontainer requests 2 CPUs / 8 GB RAM, waits for `npm ci` before setup completes, and opens the forwarded app port in the browser. Port visibility is checked in GitHub's Ports panel rather than relying on the removed, undocumented `portsAttributes.visibility` property. See [the cloud workflow](codespaces.md).

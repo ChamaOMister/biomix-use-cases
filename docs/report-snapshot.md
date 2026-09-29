@@ -1,6 +1,6 @@
 # Downloadable report snapshot
 
-Status: implemented in milestone 6 ([decision 002](architecture-002-clean-data-platform.md), item 7). Awaiting review.
+Status: implemented in milestone 6 ([decision 002](architecture-002-clean-data-platform.md), item 7), [review approved](reviews/milestone-4-6-review.md) on 2026-09-29. The first release is pending.
 
 **Download:** [biomix-report-snapshot.html from the latest release](https://github.com/ChamaOMister/biomix-use-cases/releases/latest/download/biomix-report-snapshot.html). The link works once a version tag has been released (see below). Open the file in a browser. It needs no installation, server or network.
 

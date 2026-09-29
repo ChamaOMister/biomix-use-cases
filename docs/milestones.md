@@ -28,4 +28,13 @@ Store installments in `scheduled_installments`, generated in TypeScript when an 
 
 Reconcile representative source totals manually, run the behavior suite, verify the feed → database → report flow in a browser, and create a short demo with one accepted delivery and one meaningful rejected delivery. Build the downloadable report snapshot ([decision 002](architecture-002-clean-data-platform.md), item 7): a single HTML file generated from the seed, published by CI as a GitHub Release asset and linked from the README. Test that the snapshot's totals equal the application's report on the same data, that it opens from disk without network access, and that it contains no answer-key data. Verify a fresh Codespace, update setup/limitations/contribution sections, and obtain reviewer feedback. Record actual evidence and unresolved risks. Only then begin Project 2 in a separate repository.
 
+## Project 1 status, 2026-09-29
+
+Milestones 1–6 are implemented and review-approved: milestones 1 and 2 with browser QA accepted, milestone 3 in [its review](reviews/milestone-3-review.md), and milestones 4–6 together in [their review](reviews/milestone-4-6-review.md) (R1–R3 closed). The maintainer waived the fresh Codespace's browser steps ([setup verification](setup-verification.md#fresh-codespace-2026-09-29)). Remaining before Project 1 is complete: publish the first versioned release and verify its downloaded snapshot.
+
+Non-blocking follow-ups from the review, not scheduled:
+
+- The snapshot's due-month labels wrap at mobile width (cosmetic).
+- The live page could read its reports and filter context within one consistent read transaction.
+
 Deferred: Project 2 bounded-tool copilot with deterministic evaluations, reaching the database through an MCP server with fixed read-only tools; Project 3 n8n agent with approval, rejection, tool-failure, and duplicate-trigger tests and a fixed-workflow baseline. Neither should be scaffolded here.
