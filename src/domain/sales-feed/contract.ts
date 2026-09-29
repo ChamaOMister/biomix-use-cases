@@ -222,6 +222,9 @@ function isJsonObject(value: unknown): value is JsonObject {
 
 function isCleanText(text: string, maxLength: number): boolean {
   if (text.length === 0 || text.length > maxLength || text.trim() !== text) return false;
+  // An unpaired surrogate is not Unicode text: Postgres would store it as U+FFFD, so two
+  // different IDs could name one stored record. Rejected, never replaced.
+  if (!text.isWellFormed()) return false;
   if (text.normalize("NFC") !== text) return false;
   for (let i = 0; i < text.length; i += 1) {
     const code = text.charCodeAt(i);
@@ -299,7 +302,7 @@ class FieldReader {
       this.report(
         key,
         "TEXT_INVALID",
-        `${key} must be non-empty text of at most ${maxLength} characters, in Unicode NFC form, without surrounding spaces or control characters.`,
+        `${key} must be non-empty, well-formed Unicode text of at most ${maxLength} characters, in NFC form, without surrounding spaces or control characters.`,
       );
       return null;
     }

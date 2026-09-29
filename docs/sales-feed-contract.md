@@ -18,7 +18,7 @@ The validator returns either the typed delivery plus a summary (invoice and line
 | Every object | Any other field is rejected, so misspelled fields are never silently dropped | `FIELD_UNKNOWN` |
 | Every value | JSON type as specified (numbers are not strings, and so on) | `TYPE_INVALID` |
 | `deliveryId` | Lowercase canonical UUID, chosen by the sender | `DELIVERY_ID_INVALID` |
-| Text and IDs | Non-empty, no surrounding spaces or control characters, Unicode NFC; IDs ≤ 64 characters, other text ≤ 200. NFC matters because territory matching compares accented city names exactly | `TEXT_INVALID` |
+| Text and IDs | Non-empty, no surrounding spaces or control characters, well-formed Unicode in NFC; IDs ≤ 64 characters, other text ≤ 200 (UTF-16 code units, so a supplementary character counts as two). NFC matters because territory matching compares accented city names exactly. Well-formed means no unpaired surrogate (a JSON escape such as `\ud800` without its partner): Postgres cannot store one and would substitute U+FFFD, so two different invoice numbers could name one stored invoice. Such text is rejected, never repaired | `TEXT_INVALID` |
 | `billingDate` | A real calendar date written `YYYY-MM-DD`, early enough that every installment of its payment schedule falls due by 9999-12-31 ([scheduled collections](collections.md)) | `DATE_INVALID` |
 | Lists | At least 1 invoice per delivery and 1 line per invoice; at most 5,000 invoices and 200 lines per invoice | `LIST_EMPTY`, `LIST_TOO_LONG` |
 | `businessUnit` | Exactly `Agro` or `Home & Garden` | `BUSINESS_UNIT_UNKNOWN` |

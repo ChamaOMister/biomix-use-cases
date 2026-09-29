@@ -225,6 +225,66 @@ describe("validateDelivery: field values", () => {
     ]);
   });
 
+  it("rejects unpaired surrogates in IDs and text instead of replacing them", () => {
+    // Postgres would store each as U+FFFD, so "REVIEW-\ud800" and "REVIEW-\ud801" would collide.
+    for (const text of ["REVIEW-\ud800", "REVIEW-\ud801", "REVIEW-\udc00", "\ud83d", "\udf31 x", "x\udf31\ud83d"]) {
+      const payload = delivery([
+        invoice({
+          invoiceNumber: text,
+          customer: { ...invoice().customer, id: text, name: text },
+          lines: [line({ productId: text, productName: text })],
+        }),
+      ]);
+      const errors = errorsOf(validateDelivery(payload));
+      expect(errors.map((error) => `${error.code} ${error.path}`)).toEqual([
+        "TEXT_INVALID /invoices/0/invoiceNumber",
+        "TEXT_INVALID /invoices/0/customer/id",
+        "TEXT_INVALID /invoices/0/customer/name",
+        "TEXT_INVALID /invoices/0/lines/0/productId",
+        "TEXT_INVALID /invoices/0/lines/0/productName",
+      ]);
+      // An unusable invoice number is not echoed back as the error's invoice.
+      expect(errors.every((error) => error.invoiceNumber === null)).toBe(true);
+    }
+    // Every text field shares the rule.
+    for (const [path, payload] of [
+      ["/invoices/0/sellerId", invoice({ sellerId: "S0\ud800" })],
+      ["/invoices/0/customer/segment", invoice({ customer: { ...invoice().customer, segment: "farmer\udfff" } })],
+      ["/invoices/0/customer/city", invoice({ customer: { ...invoice().customer, city: "Viçosa\ud800" } })],
+      ["/invoices/0/customer/state", invoice({ customer: { ...invoice().customer, state: "M\udc00" } })],
+      ["/invoices/0/lines/0/productCategory", invoice({ lines: [line({ productCategory: "\ud800Foliar" })] })],
+    ] as const) {
+      expect(codesAt(validateDelivery(delivery([payload])))).toEqual([`TEXT_INVALID ${path}`]);
+    }
+  });
+
+  it("rejects the whole delivery when one invoice has an unpaired surrogate", () => {
+    const result = validateDelivery(delivery([invoice(), homeGardenInvoice({ invoiceNumber: "REVIEW-\ud800" })]));
+    expect(codesAt(result)).toEqual(["TEXT_INVALID /invoices/1/invoiceNumber"]);
+  });
+
+  it("keeps valid supplementary characters, which are surrogate pairs in JavaScript", () => {
+    const seedling = "Fictional Seedling \u{1F331}";
+    const result = validateDelivery(
+      delivery([
+        invoice({
+          invoiceNumber: "NF-\u{1D7D8}",
+          customer: { ...invoice().customer, name: seedling },
+          lines: [line({ productName: seedling })],
+        }),
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.delivery.invoices[0]?.invoiceNumber).toBe("NF-\u{1D7D8}");
+    expect(result.delivery.invoices[0]?.customer.name).toBe(seedling);
+    // A well-formed but decomposed name is still refused: NFC is checked as before.
+    const decomposed = "Viçosa";
+    expect(codesAt(validateDelivery(delivery([invoice({ customer: { ...invoice().customer, name: decomposed } })])))).toEqual([
+      "TEXT_INVALID /invoices/0/customer/name",
+    ]);
+  });
+
   it("accepts only real ISO calendar dates", () => {
     expect(validateDelivery(delivery([invoice({ billingDate: "2024-02-29" })])).ok).toBe(true);
     for (const billingDate of ["2025-02-29", "2025-13-01", "12/06/2025", "2025-6-12", "2025-06-12T00:00:00Z", 45820]) {

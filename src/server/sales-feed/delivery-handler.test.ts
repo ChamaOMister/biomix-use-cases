@@ -161,6 +161,20 @@ describe.skipIf(!hasDatabase)("sales-feed endpoint with Postgres", () => {
     expect(events.join("\n")).not.toMatch(/000010|S99/);
   });
 
+  it("rejects an unpaired surrogate escape in the JSON body instead of storing U+FFFD", async () => {
+    const payload = delivery([invoice("000030", { customer: { ...invoice("x").customer, id: "C0030", name: "Fictional \ud800" } })]);
+    const body = JSON.stringify(payload);
+    // Well-formed JSON text and valid UTF-8: the surrogate arrives as the escape "\ud800".
+    expect(body).toContain("Fictional \\ud800");
+    const first = await send(post(body), { pool: () => db.pool });
+    expect(first).toMatchObject({
+      status: 422,
+      body: { status: "rejected", errors: [{ code: "TEXT_INVALID", path: "/invoices/0/customer/name", invoiceNumber: "000030" }] },
+    });
+    const stored = await db.pool.query("SELECT 1 FROM customers WHERE customer_id = 'C0030'");
+    expect(stored.rows).toEqual([]);
+  });
+
   it("refuses a reused deliveryId with different content", async () => {
     const payload = delivery([invoice("000020")]);
     await send(post(JSON.stringify(payload)), { pool: () => db.pool });

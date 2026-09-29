@@ -331,6 +331,54 @@ describe.skipIf(!hasDatabase)("delivery ingestion into Postgres", () => {
       ]);
     });
 
+    it("rejects unpaired surrogates, so two different invoice numbers cannot become one stored invoice", async () => {
+      // Review R1: both used to be accepted and stored as "REVIEW-�", the second replacing the first.
+      await expectRejectedWithoutChanges(delivery([invoice("REVIEW-\ud800", { lines: [line("PA1", 1, 100)] })]), [
+        "TEXT_INVALID /invoices/0/invoiceNumber",
+      ]);
+      await expectRejectedWithoutChanges(delivery([invoice("REVIEW-\ud801", { lines: [line("PA1", 1, 200)] })]), [
+        "TEXT_INVALID /invoices/0/invoiceNumber",
+      ]);
+      const replacement = await db.pool.query("SELECT invoice_number FROM invoices WHERE invoice_number LIKE '%�%'");
+      expect(replacement.rows).toEqual([]);
+    });
+
+    it("rejects unpaired surrogates in customer and product IDs and text alongside valid invoices", async () => {
+      const customer = { id: "C0001", name: "Fictional Agro \ud800", segment: "farmer", city: "Viçosa", state: "MG" };
+      await expectRejectedWithoutChanges(
+        delivery([
+          invoice("000001", { customer }),
+          invoice("000003", { customer: { ...customer, id: "C\udc00", name: "Fictional New" } }),
+          invoice("000004", { lines: [line("PA1", 1, 1250), line("P\ud83d", 1, 100, "Fictional \udf31")] }),
+        ]),
+        [
+          "TEXT_INVALID /invoices/0/customer/name",
+          "TEXT_INVALID /invoices/1/customer/id",
+          "TEXT_INVALID /invoices/2/lines/1/productId",
+          "TEXT_INVALID /invoices/2/lines/1/productName",
+        ],
+      );
+    });
+
+    it("stores valid supplementary characters exactly, keeping distinct IDs distinct", async () => {
+      const seedling = { id: "C\u{1F331}", name: "Fictional Seedling \u{1F331}", segment: "farmer", city: "Viçosa", state: "MG" };
+      await apply(
+        delivery([
+          invoice("REVIEW-\u{1F331}", { customer: seedling, lines: [line("PA1", 1, 100)] }),
+          invoice("REVIEW-\u{1F332}", { customer: seedling, lines: [line("PA1", 1, 200)] }),
+        ]),
+      );
+      const stored = await db.pool.query(
+        `SELECT i.invoice_number, c.customer_id, c.name, sum(l.line_amount_cents)::int AS cents
+         FROM invoices i JOIN customers c USING (customer_id) JOIN invoice_lines l USING (invoice_number)
+         WHERE i.invoice_number LIKE 'REVIEW-%' GROUP BY 1, 2, 3 ORDER BY 1`,
+      );
+      expect(stored.rows).toEqual([
+        { invoice_number: "REVIEW-\u{1F331}", customer_id: seedling.id, name: seedling.name, cents: 100 },
+        { invoice_number: "REVIEW-\u{1F332}", customer_id: seedling.id, name: seedling.name, cents: 200 },
+      ]);
+    });
+
     it("rolls back everything when the database fails mid-delivery, and records nothing", async () => {
       await db.pool.query(`
         CREATE FUNCTION fail_on_product() RETURNS trigger AS $$

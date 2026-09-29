@@ -249,13 +249,13 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 64,
-        "description": "Non-empty, Unicode NFC, no surrounding spaces or control characters."
+        "description": "Non-empty, well-formed Unicode (no unpaired surrogates, such as a lone \\ud800 escape) in NFC form, no surrounding spaces or control characters."
       },
       "Text": {
         "type": "string",
         "minLength": 1,
         "maxLength": 200,
-        "description": "Non-empty, Unicode NFC, no surrounding spaces or control characters."
+        "description": "Non-empty, well-formed Unicode (no unpaired surrogates, such as a lone \\ud800 escape) in NFC form, no surrounding spaces or control characters."
       },
       "DeliveryApplied": {
         "type": "object",
