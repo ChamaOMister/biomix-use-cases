@@ -7,8 +7,10 @@ GitHub Codespaces is the primary development and demo environment for this publi
 | Component | Location |
 | --- | --- |
 | Node.js, npm, Next.js, XLSX parsing, tests and builds | GitHub Codespace Linux container |
+| Postgres 17 (stored feed data) | Second dev-container service, data in a Docker volume |
 | Editor | VS Code in your browser, connected to the Codespace |
-| Upload picker, accepted report state and report calculations | Your browser |
+| Upload picker, accepted XLSX report state and its calculations | Your browser |
+| Stored-data report calculations | SQL in Postgres, rendered by the Next.js server |
 | Source and installed dependencies | Codespace filesystem |
 
 Selecting an XLSX file in the app sends its bytes to the cloud server for validation. The application does not persist uploads; accepted lines stay in the browser tab and disappear on reload. Use reviewed fictional data for portfolio demos. A file selected through the browser does not need to be copied into the repository first. No demo workbook is bundled yet.
@@ -17,7 +19,7 @@ Codespaces cannot access paths on your Mac. Work from the repository root in the
 
 ## Start, check and resume
 
-The devcontainer installs the pinned Node version and runs `npm ci` on creation/rebuild. Workspace setup waits for that installation to finish. Start the server in the Codespace terminal:
+The devcontainer installs the pinned Node version, starts Postgres and, on creation/rebuild, runs `npm ci`, `npm run setup:env` and `npm run db:migrate`. Workspace setup waits for those steps to finish. See [the database guide](database.md) for loading the synthetic feed. Start the server in the Codespace terminal:
 
 ```sh
 npm run dev
@@ -46,14 +48,20 @@ When resuming a stopped Codespace, run `npm run dev` again if the server is no l
 | Next.js chooses port 3001 | Stop the extra server and restart on 3000; forwarding and development-origin configuration target port 3000 |
 | Setup fails during `npm ci` | Inspect the creation log and resolve the installation error before starting the app |
 | Development-origin warning | Use this Codespace's forwarded address and rebuild if configuration changed; keep the origin allowlist scoped to the Codespace |
-| Changes vanish from the report after reload | Expected: the app has no database; select the workbook again |
+| The XLSX report vanishes after reload | Expected: uploaded workbooks are not stored; select the workbook again |
+| Report says the database is not configured or unreachable | Rebuild the container (Codespaces created before milestone 4 have no Postgres), then run `npm run db:migrate` |
+| Report says no deliveries have been applied | Run `npm run generate:data`, then `npm run feed:send -- data/generated/feed/deliveries` |
+| `feed:send` reports `FEED_NOT_CONFIGURED` or `UNAUTHORIZED` | Run `npm run setup:env` and restart `npm run dev` so the server reads `.env.local` |
+| `feed:send` reports `409 DELIVERY_ID_REUSED` | The files were regenerated with different content under the same delivery IDs; run `npm run db:reset -- --yes` and send again |
 
 ## Fresh-Codespace verification (pending)
 
 Run these in a newly created Codespace and record results in [setup-verification.md](setup-verification.md):
 
 - Confirm `node --version` is `v24.21.0` and dependency installation completed.
-- Run `npm run check` and record the result.
+- Confirm Postgres is running and migrated (`npm run db:migrate` reports the migration as already applied).
+- Run `npm run check` and record the result; the database tests must run, not skip.
+- Generate the feed, send the deliveries with `npm run feed:send`, and check the report in the browser.
 - Run `npm run dev`, open the forwarded HTTPS preview, and verify port 3000 is private.
 - Complete [manual browser QA](manual-qa.md) with reviewed fictional workbooks, including upload success, validation failure, filters and reset.
 - Edit a visible UI label temporarily, verify hot reload through the forwarded URL, then revert the edit.

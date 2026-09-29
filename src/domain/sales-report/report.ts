@@ -46,7 +46,7 @@ export type SalesReportResult =
   | { ok: true; report: SalesReport }
   | { ok: false; code: "FILTER_INVALID_PERIOD" | "TOTAL_OUT_OF_RANGE"; message: string };
 
-const BUSINESS_UNIT_ORDER: BusinessUnit[] = ["AGRO", "HOME_GARDEN"];
+export const BUSINESS_UNIT_ORDER: readonly BusinessUnit[] = ["AGRO", "HOME_GARDEN"];
 
 function isCalendarDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -108,11 +108,20 @@ function sameTotals(a: ReportTotals, b: ReportTotals): boolean {
   );
 }
 
-export function buildSalesReport(lines: readonly SalesLine[], rawFilters: ReportFilters): SalesReportResult {
-  // Empty strings (e.g. an unselected <select>) mean "no filter".
-  const filters: ReportFilters = Object.fromEntries(
+export type FilterValidation<F> =
+  | { ok: true; filters: F }
+  | { ok: false; code: "FILTER_INVALID_PERIOD"; message: string };
+
+/**
+ * Drops empty filters (e.g. an unselected <select>) and checks the period. Shared with the
+ * database-backed report so both apply the same rules.
+ */
+export function normalizeReportFilters<F extends { from?: CalendarDate; to?: CalendarDate }>(
+  rawFilters: F,
+): FilterValidation<F> {
+  const filters = Object.fromEntries(
     Object.entries(rawFilters).filter(([, value]) => value !== undefined && value !== ""),
-  );
+  ) as F;
   for (const bound of [filters.from, filters.to]) {
     if (bound !== undefined && !isCalendarDate(bound)) {
       return { ok: false, code: "FILTER_INVALID_PERIOD", message: "Period dates must be real dates in YYYY-MM-DD." };
@@ -121,6 +130,18 @@ export function buildSalesReport(lines: readonly SalesLine[], rawFilters: Report
   if (filters.from !== undefined && filters.to !== undefined && filters.from > filters.to) {
     return { ok: false, code: "FILTER_INVALID_PERIOD", message: "The period start is after its end." };
   }
+  return { ok: true, filters };
+}
+
+/** True when the month and business-unit breakdowns each sum exactly to the totals. */
+export function breakdownsReconcile(totals: ReportTotals, byMonth: ReportRow[], byBusinessUnit: ReportRow[]): boolean {
+  return sameTotals(sumRows(byMonth), totals) && sameTotals(sumRows(byBusinessUnit), totals);
+}
+
+export function buildSalesReport(lines: readonly SalesLine[], rawFilters: ReportFilters): SalesReportResult {
+  const normalized = normalizeReportFilters(rawFilters);
+  if (!normalized.ok) return normalized;
+  const { filters } = normalized;
 
   const matches = (line: SalesLine) =>
     (filters.customerId === undefined || line.customerId === filters.customerId) &&
@@ -162,7 +183,7 @@ export function buildSalesReport(lines: readonly SalesLine[], rawFilters: Report
       byMonth,
       byBusinessUnit,
       scope: filters.productId === undefined ? "whole-invoices" : "matching-lines",
-      reconciled: sameTotals(sumRows(byMonth), totals) && sameTotals(sumRows(byBusinessUnit), totals),
+      reconciled: breakdownsReconcile(totals, byMonth, byBusinessUnit),
     },
   };
 }

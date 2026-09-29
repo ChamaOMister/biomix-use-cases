@@ -8,8 +8,25 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Same Postgres major version as the dev container. The database tests create and drop their
+    # own schemas, and fail rather than skip when CI has no DATABASE_URL.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: biomix
+          POSTGRES_PASSWORD: biomix
+          POSTGRES_DB: biomix
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U biomix"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       NEXT_TELEMETRY_DISABLED: 1
+      DATABASE_URL: postgres://biomix:biomix@localhost:5432/biomix
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,5 +34,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm run db:migrate
       # lint → typecheck → behavior tests (npm test) → production build
       - run: npm run check

@@ -1,6 +1,6 @@
 # Architecture decision 002: clean-data feed, Postgres and shared consumers
 
-Status: accepted direction (2026-09-27), not implemented. Details marked *proposed* are reversible until their milestone is reviewed. Supersedes the "start without a database" paragraph of [decision 001](architecture.md).
+Status: accepted direction (2026-09-27). Milestone 3 implemented the JSON delivery contract ([contract](sales-feed-contract.md), [OpenAPI](api/sales-feed.openapi.json)) and the seeded generator ([synthetic data](synthetic-data.md)), [review approved](reviews/milestone-3-review.md) on 2026-09-29. Milestone 4 implemented Postgres, the delivery endpoint and the database-backed report ([database guide](database.md)), awaiting review. Scheduled installments and later items are not implemented. Details marked *proposed* are reversible until their milestone is reviewed. Supersedes the "start without a database" paragraph of [decision 001](architecture.md).
 
 ## Context
 
@@ -32,7 +32,7 @@ existing XLSX import (unchanged) ───────────────�
 
 ## JSON delivery contract (proposed)
 
-Money is integer BRL cents. Dates are ISO calendar dates. The payload is organised by invoice, with lines nested inside, preserving the difference between invoices and invoice lines.
+Specified and validated in milestone 3; the rules, error codes and defaults are in [the contract](sales-feed-contract.md). Money is integer BRL cents. Dates are ISO calendar dates. The payload is organised by invoice, with lines nested inside, preserving the difference between invoices and invoice lines.
 
 ```json
 {
@@ -65,7 +65,7 @@ The endpoint checks the contract, as any API does: required fields, types, `line
 
 Invoice numbers identify invoices across all deliveries, not only within one. Clean data guarantees that uniqueness. If a source ever reuses numbers by series or year, the contract needs an explicit invoice identity field first ([data contract](data-contract.md), default 6).
 
-## Tables (proposed)
+## Tables (implemented in milestone 4, except `scheduled_installments`)
 
 | Table | Grain | Notes |
 | --- | --- | --- |
@@ -73,9 +73,9 @@ Invoice numbers identify invoices across all deliveries, not only within one. Cl
 | `territory_cities` | city per business unit | city, state, business unit, seller; at most one seller per city and business unit |
 | `customers` | customer | ID, name, segment, city, state, owning seller; upserted, owner never changes through the feed |
 | `products` | product | ID, name, category, business unit; upserted |
-| `feed_deliveries` | delivery | delivery ID, received time, invoices added/replaced, line count, totals, billing-date range, status |
+| `feed_deliveries` | delivery | delivery ID, payload hash, received time, status (applied or rejected); applied: invoices added/replaced, line count, totals, billing-date range; rejected: the located errors |
 | `invoices` | invoice | number (unique), billing date, customer, seller, unit, payment schedule, last delivery that wrote it |
-| `invoice_lines` | invoice product line | quantity, unit price, amount, commission (cents) |
+| `invoice_lines` | invoice product line | line number within the invoice, product, quantity, unit price, amount, commission (cents) |
 | `scheduled_installments` | contractual installment | due date, amount in cents; milestone 5; not actual payments |
 
 Replacing an invoice deletes its lines and installments and inserts the delivered ones. Sellers, customers and products are reference data and are upserted, never deleted by the feed.

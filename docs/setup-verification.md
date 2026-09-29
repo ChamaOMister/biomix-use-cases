@@ -93,6 +93,47 @@ Fix: `workbook-structure.ts` decodes every merged range, data-validation piece a
 
 Before calling the environment Codespaces-verified, create a fresh Codespace using the README steps, run the app/checks there, and replace that limitation with the actual result. Before calling Project 1 complete, collect the business evidence in `review.md`.
 
+## Milestone 3 (delivery contract + synthetic generator), 2026-09-29
+
+| Check | Result |
+| --- | --- |
+| Territory sources | pt.wikipedia pages fetched in the Codespace (IBGE API and RJ government sites unreachable): ES 78 (matches IBGE's count), Zona da Mata 142 (IBGE microregion table), Grande São Paulo 39, bordering lists for the named seat cities. Região Serrana (15) follows the official list supplied by the maintainer. See `sales-feed-contract.md` |
+| `npm run generate:data` (default seed 2026) | 44 closed-month deliveries + pending 2026-09; 6,468 invoices, 19,361 lines, 305 customers after replay; annual deviation +0.04% / −0.03% / −0.06% / −0.10%; Agro 59.98–60.02%; about 1 s (figures after the R1 correction below) |
+| Generated output | `data/generated/` confirmed Git-ignored with `git check-ignore` |
+| Mutation spot-check | Half-down commission rounding, no territory check, no duplicate-invoice check, missed season not planted, customers placed in another seller's territory: each made at least one test fail. Restored |
+| `npm run check` | Exit 0: ESLint, typegen + TypeScript, 313 tests in 13 files, production build |
+
+### R1 correction (reduced purchases), 2026-09-29
+
+Review R1 found that the planted reduced-purchases accounts were not guaranteed to buy less: seed 28 showed +10.52%. The two accounts' 2026 orders are now drawn after all other orders, against 40% of the account's drawn sales from 1 January to 25 September 2025, then nudged to within 0.1%. These invoices are locked, so splits, corrections and calibration never change them. The generator fails if the realized ratio is more than 0.02 from 0.4. The answer-key description states the measured change and periods.
+
+| Check | Result |
+| --- | --- |
+| Seed probe (0–39, 2026, 4294967295), in memory | Every reduced account between −59.96% and −60.04%; every unit-year within 0.10% of target. Seed 8: C0175 Agro −60.01%, C0233 Home & Garden −60.01%. Seed 28: C0033 Agro −59.97%, C0086 Home & Garden −60.03% |
+| New regressions (seeds 2026, 8, 28) | Recompute both periods from replayed invoices and match the answer key; ratio 0.4 ± 0.02; change percent and description match the measured figures; reduced accounts are never split or corrected; unit-year targets within 1% |
+| Mutation check | Restoring the old weight-only reduction made the reduction test fail for all three seeds. Restored |
+| `npm run check` | Exit 0: ESLint, typegen + TypeScript, 324 tests in 13 files, production build |
+
+Not run: hosted CI, a fresh Codespace, and any endpoint or database behavior (milestone 4). The generator's determinism was checked on Node 24.21.0 only; other Node/V8 versions are expected to match, because the generator uses 32-bit integer random numbers, basic IEEE-754 arithmetic without transcendental `Math` functions, and UTC dates. That was not tested.
+
+## Milestone 4 (Postgres and delivery ingestion), 2026-09-29
+
+Run in the existing Codespace, which predates the Postgres dev-container service. For these checks Postgres 17.11 was installed into the running container from the PGDG apt repository, with a local `biomix` role and database matching the dev-container settings. The compose-based dev container itself was not built (no Docker in this environment).
+
+| Check | Result |
+| --- | --- |
+| `npm install --save-exact pg@8.23.0`, `npm install --save-dev --save-exact @types/pg@8.23.1` | Lockfile updated |
+| `npm run db:migrate` (twice) | First run applied `0001_sales_feed.sql` and synced the reference data; the second applied nothing |
+| HTTP flow on `next start` against the dev database | The existing `data/generated/` (written before the Região Serrana spelling fix) was rejected at 2023-08: `CITY_OUTSIDE_TERRITORY` for "Trajano de Moraes"; nothing from it was stored. After `npm run db:reset -- --yes` and `npm run generate:data`, all 44 closed months and the pending delivery were applied: 6,468 invoices, 19,361 lines, 7 replacements. Stored yearly sales equal `summary.json` to the cent. Resending 2025-07 returned the original result with `Idempotent-Replayed`. A delivery with a changed line amount → 422 with located errors, stored data unchanged. A reused delivery ID with different content → 409. Server logs showed IDs, counts and error codes only |
+| Rendered report (`GET /` with filters) | Totals R$ 87.963.059,70 / 6.468 invoices / 19.361 lines; Agro 2025 equals a direct SQL sum; the product filter shows the line-scope note; an invalid date shows the period error; an empty period shows zero totals |
+
+| Mutation spot-check | Each of these made at least one test fail: not deleting a replaced invoice's old lines, skipping the payload-hash comparison, not recording rejections, dropping the stored product-unit or customer-owner lookup, no transaction, no advisory lock (caught only after the concurrency tests were changed to queue deliveries behind a held lock), counting lines as invoices, applying the product filter to whole invoices, an exclusive upper date bound. Restored |
+| Test-database guard | Without `DATABASE_URL`: 34 database tests skipped with a visible warning. With `CI=1` and no `DATABASE_URL`: the run fails. Test schemas are dropped after each run (none left behind) |
+| `npm audit --omit=dev` | The same 2 moderate findings as milestone 1 (`uuid` via ExcelJS); `pg` adds none |
+| `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, 376 tests in 16 files, production build (adds dynamic route `/api/sales-feed/deliveries`) |
+
+Not run: building the compose-based dev container or a fresh Codespace, hosted CI with the Postgres service, interactive browser use of the report filters (the page was checked through its HTML), and a load test with deliveries near the contract's size limits.
+
 ## Codespaces workflow update, 2026-09-27
 
 Codespaces is now the primary documented environment. The existing devcontainer requests 2 CPUs / 8 GB RAM, waits for `npm ci` before setup completes, and opens the forwarded app port in the browser. Port visibility is checked in GitHub's Ports panel rather than relying on the removed, undocumented `portsAttributes.visibility` property. See [the cloud workflow](codespaces.md).

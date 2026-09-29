@@ -3,21 +3,14 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { DEFAULT_INPUT_LIMITS } from "@/domain/sales-import/limits";
 import type { TextDateFormat } from "@/domain/sales-import/dates";
-import type { BusinessUnit, ImportIssue, SalesImportResult } from "@/domain/sales-import/types";
+import type { ImportIssue, SalesImportResult } from "@/domain/sales-import/types";
 import { formatBrlCents } from "@/domain/sales-report/format";
-import {
-  buildSalesReport,
-  reconcileDataset,
-  reportFilterOptions,
-  type ReportFilters,
-  type ReportRow,
-} from "@/domain/sales-report/report";
+import { buildSalesReport, reconcileDataset, reportFilterOptions, type ReportFilters } from "@/domain/sales-report/report";
 import type { UploadResponseBody } from "@/server/sales-import-handler";
+import { BUSINESS_UNIT_NAMES, integer, SalesReportView } from "./sales-report-view";
 
 const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const MAX_ISSUES_SHOWN = 200;
-const BUSINESS_UNIT_LABELS: Record<BusinessUnit, string> = { AGRO: "Agro", HOME_GARDEN: "Home & Garden" };
-const integer = new Intl.NumberFormat("pt-BR");
 
 /** One upload: the file, how to read text dates, and a sheet the user picked (none = the only sheet). */
 interface UploadRequest {
@@ -271,7 +264,7 @@ function AcceptedView({ fileName, result }: { fileName: string; result: Accepted
           Business unit
           <select value={filters.businessUnit ?? ""} onChange={(event) => set("businessUnit")(event.target.value)}>
             <option value="">All units</option>
-            {options.businessUnits.map((unit) => <option key={unit} value={unit}>{BUSINESS_UNIT_LABELS[unit]}</option>)}
+            {options.businessUnits.map((unit) => <option key={unit} value={unit}>{BUSINESS_UNIT_NAMES[unit]}</option>)}
           </select>
         </label>
         <label>
@@ -285,57 +278,7 @@ function AcceptedView({ fileName, result }: { fileName: string; result: Accepted
         <button type="button" className="secondary" onClick={() => setFilters({})}>Clear filters</button>
       </form>
 
-      {!report.ok ? (
-        <p className="panel error">{report.message}</p>
-      ) : (
-        <>
-          <dl className="totals">
-            <div><dt>Invoiced sales</dt><dd>{formatBrlCents(report.report.totals.salesCents)}</dd></div>
-            <div><dt>Distinct invoices</dt><dd>{integer.format(report.report.totals.invoiceCount)}</dd></div>
-            <div><dt>Invoice lines</dt><dd>{integer.format(report.report.totals.lineCount)}</dd></div>
-            <div><dt>Commission recorded</dt><dd>{formatBrlCents(report.report.totals.commissionCents)}</dd></div>
-          </dl>
-          <p className="muted">
-            {report.report.scope === "whole-invoices"
-              ? "All filters apply to whole invoices: totals include every line of each matching invoice."
-              : "The product filter selects individual lines: totals include only this product's lines, and an invoice counts if at least one of its lines matches. These are not whole-invoice totals."}
-          </p>
-          <p className={report.report.reconciled ? "check ok" : "check bad"}>
-            {report.report.reconciled ? "✓ Month and business-unit breakdowns each sum exactly to the totals above." : "✗ Breakdowns do not sum to the totals."}
-          </p>
-          <div className="breakdowns">
-            <Breakdown title="By billing month" rows={report.report.byMonth} label={(key) => key} />
-            <Breakdown title="By business unit" rows={report.report.byBusinessUnit} label={(key) => BUSINESS_UNIT_LABELS[key as BusinessUnit]} />
-          </div>
-        </>
-      )}
+      {!report.ok ? <p className="panel error">{report.message}</p> : <SalesReportView report={report.report} />}
     </section>
-  );
-}
-
-function Breakdown({ title, rows, label }: { title: string; rows: ReportRow[]; label: (key: string) => string }) {
-  return (
-    <div>
-      <h3>{title}</h3>
-      {rows.length === 0 ? (
-        <p className="muted">No matching lines.</p>
-      ) : (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>{title.replace(/^By /, "")}</th><th className="num">Invoices</th><th className="num">Lines</th><th className="num">Invoiced sales</th></tr></thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.key}>
-                  <td>{label(row.key)}</td>
-                  <td className="num">{integer.format(row.invoiceCount)}</td>
-                  <td className="num">{integer.format(row.lineCount)}</td>
-                  <td className="num">{formatBrlCents(row.salesCents)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
   );
 }
