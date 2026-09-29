@@ -1,6 +1,6 @@
 # Clean sales feed: JSON delivery contract
 
-Status: the validator (`src/domain/sales-feed/contract.ts`) and the [OpenAPI 3.1 description](api/sales-feed.openapi.json) were implemented in milestone 3. Milestone 4 added the endpoint `POST /api/sales-feed/deliveries`, Postgres storage, idempotent resending and the development API key ([database guide](database.md), [decision 002](architecture-002-clean-data-platform.md)). Choices marked *default* are reversible and should change only with a recorded reason.
+Status: the validator (`src/domain/sales-feed/contract.ts`) and the [OpenAPI 3.1 description](api/sales-feed.openapi.json) were implemented in milestone 3. Milestone 4 added the endpoint `POST /api/sales-feed/deliveries`, Postgres storage, idempotent resending and the development API key ([database guide](database.md), [decision 002](architecture-002-clean-data-platform.md)). Milestone 5 added the billing-date bound for installment due dates. Choices marked *default* are reversible and should change only with a recorded reason.
 
 The feed carries clean, already validated data. These checks are ordinary API-boundary validation, not ERP-export repair.
 
@@ -19,7 +19,7 @@ The validator returns either the typed delivery plus a summary (invoice and line
 | Every value | JSON type as specified (numbers are not strings, and so on) | `TYPE_INVALID` |
 | `deliveryId` | Lowercase canonical UUID, chosen by the sender | `DELIVERY_ID_INVALID` |
 | Text and IDs | Non-empty, no surrounding spaces or control characters, Unicode NFC; IDs ≤ 64 characters, other text ≤ 200. NFC matters because territory matching compares accented city names exactly | `TEXT_INVALID` |
-| `billingDate` | A real calendar date written `YYYY-MM-DD` | `DATE_INVALID` |
+| `billingDate` | A real calendar date written `YYYY-MM-DD`, early enough that every installment of its payment schedule falls due by 9999-12-31 ([scheduled collections](collections.md)) | `DATE_INVALID` |
 | Lists | At least 1 invoice per delivery and 1 line per invoice; at most 5,000 invoices and 200 lines per invoice | `LIST_EMPTY`, `LIST_TOO_LONG` |
 | `businessUnit` | Exactly `Agro` or `Home & Garden` | `BUSINESS_UNIT_UNKNOWN` |
 | `paymentSchedule` | Exactly one of the four [data contract](data-contract.md) labels | `PAYMENT_SCHEDULE_UNKNOWN` |

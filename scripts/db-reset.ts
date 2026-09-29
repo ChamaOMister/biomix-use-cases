@@ -1,7 +1,7 @@
 /**
- * Deletes ALL stored feed data (deliveries, invoices, lines, customers, products) and re-applies
- * the migrations, for starting a demo or a replay from scratch (Node 24 runs this TypeScript file
- * directly):
+ * Deletes ALL stored feed data (deliveries, invoices, lines, installments, customers, products)
+ * and re-applies the migrations, for starting a demo or a replay from scratch (Node 24 runs this
+ * TypeScript file directly):
  *
  *   npm run db:reset -- --yes
  *
@@ -27,7 +27,7 @@ if (!values.yes) {
 const pool = createPool(url, { max: 1 });
 try {
   await pool.query(`
-    DROP TABLE IF EXISTS invoice_lines, invoices, products, customers, feed_deliveries,
+    DROP TABLE IF EXISTS scheduled_installments, invoice_lines, invoices, products, customers, feed_deliveries,
       territory_cities, sellers, schema_migrations`);
   const result = await migrate(pool);
   console.log(`Database reset: ${result.applied.length} migrations applied, seller reference data synced, no deliveries.`);

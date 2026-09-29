@@ -1,8 +1,9 @@
 /**
  * Applies the versioned SQL files in `db/migrations/` in name order, each in its own transaction,
- * then syncs the seller reference data. Applied files are recorded with a checksum and must not
- * be edited afterwards: add a new file instead. Safe to run repeatedly and concurrently (a
- * session advisory lock serializes runs).
+ * then syncs the seller reference data and schedules the installments of any stored invoice that
+ * has none (invoices stored before milestone 5). Applied files are recorded with a checksum and
+ * must not be edited afterwards: add a new file instead. Safe to run repeatedly and concurrently
+ * (a session advisory lock serializes runs).
  *
  * Reachable from Node scripts through built-in type stripping, so relative imports keep their
  * `.ts` extension and type-only imports use `import type`.
@@ -12,6 +13,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type pg from "pg";
 import { SELLERS, type SellerReference } from "../../domain/sales-feed/reference-data.ts";
+import { backfillScheduledInstallments } from "../sales-feed/ingest.ts";
 
 export const MIGRATIONS_DIR = path.join(import.meta.dirname, "..", "..", "..", "db", "migrations");
 
@@ -43,6 +45,8 @@ export function readMigrations(dir: string = MIGRATIONS_DIR): Migration[] {
 export interface MigrationResult {
   applied: string[];
   alreadyApplied: string[];
+  /** Stored invoices that had no scheduled installments yet and were given them. */
+  installmentsBackfilled: number;
 }
 
 export async function migrate(pool: pg.Pool, migrations: readonly Migration[] = readMigrations()): Promise<MigrationResult> {
@@ -61,7 +65,7 @@ export async function migrate(pool: pg.Pool, migrations: readonly Migration[] = 
         "SELECT version, checksum FROM schema_migrations",
       );
       const stored = new Map(rows.map((row) => [row.version, row.checksum]));
-      const result: MigrationResult = { applied: [], alreadyApplied: [] };
+      const result: MigrationResult = { applied: [], alreadyApplied: [], installmentsBackfilled: 0 };
       for (const migration of migrations) {
         const checksum = stored.get(migration.version);
         if (checksum !== undefined) {
@@ -87,6 +91,7 @@ export async function migrate(pool: pg.Pool, migrations: readonly Migration[] = 
         result.applied.push(migration.name);
       }
       await syncReferenceData(client);
+      result.installmentsBackfilled = await backfillScheduledInstallments(client);
       return result;
     } finally {
       await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY]);

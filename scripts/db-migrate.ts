@@ -1,6 +1,6 @@
 /**
- * Applies the SQL migrations in db/migrations/ and syncs the seller reference data
- * (Node 24 runs this TypeScript file directly):
+ * Applies the SQL migrations in db/migrations/, syncs the seller reference data and schedules the
+ * installments of invoices stored without them (Node 24 runs this TypeScript file directly):
  *
  *   npm run db:migrate
  *
@@ -34,7 +34,8 @@ try {
   const result = await migrate(pool);
   console.log(
     `Migrations: ${result.applied.length} applied${result.applied.length ? ` (${result.applied.join(", ")})` : ""}, ` +
-      `${result.alreadyApplied.length} already applied. Seller reference data synced.`,
+      `${result.alreadyApplied.length} already applied. Seller reference data synced.` +
+      (result.installmentsBackfilled ? ` Installments scheduled for ${result.installmentsBackfilled} stored invoices.` : ""),
   );
 } catch (error) {
   // Diagnostics only: messages can include connection details.

@@ -2,7 +2,7 @@
 
 A portfolio project turning an ERP spreadsheet into trustworthy invoiced-sales reporting for commercial, finance, and product teams across Agro and Home & Garden.
 
-**Status: milestone 4 (Postgres and delivery ingestion), implemented and awaiting review.** `npm run generate:data` produces reproducible fictional monthly deliveries ([synthetic data](docs/synthetic-data.md)). `POST /api/sales-feed/deliveries` checks each delivery against the [clean-feed contract](docs/sales-feed-contract.md) ([OpenAPI](docs/api/sales-feed.openapi.json)) and applies it to Postgres in one transaction, or rejects it whole with located errors ([database guide](docs/database.md)). The report reads the stored invoices: invoiced sales, distinct invoices and line counts, filters (customer, product, seller, business unit, period), and month / business-unit breakdowns with reconciliation checks. The earlier XLSX upload still validates a workbook and reports on it in the browser without storing it. Scheduled collections (installments) are not implemented yet. No business outcomes are claimed; generated figures are synthetic.
+**Status: milestones 4 (Postgres and delivery ingestion) and 5 (scheduled collections), implemented and awaiting review.** `npm run generate:data` produces reproducible fictional monthly deliveries ([synthetic data](docs/synthetic-data.md)). `POST /api/sales-feed/deliveries` checks each delivery against the [clean-feed contract](docs/sales-feed-contract.md) ([OpenAPI](docs/api/sales-feed.openapi.json)) and applies it to Postgres in one transaction, or rejects it whole with located errors ([database guide](docs/database.md)). The report reads the stored invoices: invoiced sales, distinct invoices and line counts, filters (customer, product, seller, business unit, period), and month / business-unit breakdowns with reconciliation checks. A separate section shows the scheduled collections of the same invoices: contractual installments by due month and payment schedule, reconciled to the invoiced sales ([scheduled collections](docs/collections.md)). The earlier XLSX upload still validates a workbook and reports on it in the browser without storing it. No business outcomes are claimed; generated figures are synthetic.
 
 ## Run in GitHub Codespaces (primary environment)
 
@@ -59,7 +59,7 @@ flowchart LR
   X[XLSX export] --> Y[Import check, not stored] --> H
 ```
 
-Everything except the installment schedule (milestone 5) is implemented. See [the architecture decision](docs/architecture.md) and [data contract](docs/data-contract.md).
+All of this is implemented; the downloadable report snapshot follows in milestone 6. See [the architecture decision](docs/architecture.md) and [data contract](docs/data-contract.md).
 
 ## Verification
 
@@ -67,7 +67,7 @@ Everything except the installment schedule (milestone 5) is implemented. See [th
 npm run check
 ```
 
-This runs lint, type checking, the Vitest behavior suite (`npm test`), and a production build. CI runs the same command with a Postgres service. The tests cover the import contract, input resource limits, the upload handler, the report aggregation, the delivery contract and its OpenAPI description, and the synthetic generator (determinism, contract compliance, targets, territories, planted scenarios). They also cover delivery ingestion against Postgres: rejection without changes, whole-invoice replacement, untouched absent invoices, territory and ownership checks, idempotent delivery IDs, rollback on failure, the endpoint's request checks, and SQL report totals equal to the pure report module on the full seeded feed. The database tests need `DATABASE_URL`: they are skipped with a warning without it, except in CI. Browser interaction is not covered by automated tests.
+This runs lint, type checking, the Vitest behavior suite (`npm test`), and a production build. CI runs the same command with a Postgres service. The tests cover the import contract, input resource limits, the upload handler, the report aggregation, the delivery contract and its OpenAPI description, and the synthetic generator (determinism, contract compliance, targets, territories, planted scenarios). They also cover delivery ingestion against Postgres: rejection without changes, whole-invoice replacement, untouched absent invoices, territory and ownership checks, idempotent delivery IDs, rollback on failure, the endpoint's request checks, and SQL report totals equal to the pure report module on the full seeded feed. Scheduled collections are covered for all four terms, multiline invoices, non-divisible totals, month, year and leap-day boundaries, several machine time zones, replacement without stale installments, and SQL collections equal to the pure collections module. The database tests need `DATABASE_URL`: they are skipped with a warning without it, except in CI. Browser interaction is not covered by automated tests.
 
 ## Development workflow
 

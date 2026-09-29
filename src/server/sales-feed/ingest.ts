@@ -5,8 +5,9 @@
  * - a `deliveryId` already received returns its original result and writes nothing;
  * - the payload is validated against the contract with the stored customer owners and product
  *   business units; any error rejects it whole and only the rejection itself is recorded;
- * - otherwise new invoice numbers are added and stored ones replaced whole (attributes and full
- *   line set); invoices absent from the delivery are untouched and nothing is deleted.
+ * - otherwise new invoice numbers are added and stored ones replaced whole (attributes, full line
+ *   set and scheduled installments, computed in TypeScript from the whole line set); invoices
+ *   absent from the delivery are untouched and nothing is deleted.
  *
  * If anything fails, the transaction rolls back and nothing is recorded, so the sender can retry
  * with the same `deliveryId`.
@@ -23,9 +24,10 @@ import {
   type DeliverySummary,
   type FeedDelivery,
 } from "../../domain/sales-feed/contract.ts";
+import { scheduleInstallments } from "../../domain/collections/schedule.ts";
 import type { FeedReference } from "../../domain/sales-feed/reference-data.ts";
 import type { CalendarDate } from "../../domain/sales-import/dates.ts";
-import type { BusinessUnit } from "../../domain/sales-import/types.ts";
+import type { BusinessUnit, PaymentSchedule } from "../../domain/sales-import/types.ts";
 import { toSafeInteger } from "../db/pool.ts";
 
 /** Arbitrary constant naming the lock that serializes deliveries. */
@@ -302,7 +304,8 @@ async function applyDelivery(
     ],
   );
 
-  // A replaced invoice keeps none of its old lines.
+  // A replaced invoice keeps none of its old lines or installments.
+  await client.query("DELETE FROM scheduled_installments WHERE invoice_number = ANY($1::text[])", [replaced]);
   await client.query("DELETE FROM invoice_lines WHERE invoice_number = ANY($1::text[])", [replaced]);
   await client.query(
     `INSERT INTO invoices (invoice_number, billing_date, customer_id, seller_id, business_unit, payment_schedule, last_delivery_id)
@@ -340,5 +343,65 @@ async function applyDelivery(
       lines.map(({ line }) => line.commissionAmountCents),
     ],
   );
+  await insertScheduledInstallments(client, invoices);
   return body;
+}
+
+/** Computes each invoice's installments from its whole line set and stores them. */
+async function insertScheduledInstallments(
+  client: pg.PoolClient,
+  invoices: readonly (Parameters<typeof scheduleInstallments>[0] & { invoiceNumber: string })[],
+): Promise<void> {
+  const rows = invoices.flatMap((invoice) => {
+    const scheduled = scheduleInstallments(invoice);
+    // The contract rejects invoices whose total or due dates cannot be represented.
+    if (!scheduled.ok) throw new Error(`Installments cannot be scheduled: ${scheduled.code}`);
+    return scheduled.installments.map((installment) => ({ invoiceNumber: invoice.invoiceNumber, ...installment }));
+  });
+  await client.query(
+    `INSERT INTO scheduled_installments (invoice_number, installment_number, due_date, amount_cents)
+     SELECT * FROM unnest($1::text[], $2::int[], $3::date[], $4::bigint[])`,
+    [
+      rows.map((row) => row.invoiceNumber),
+      rows.map((row) => row.installmentNumber),
+      rows.map((row) => row.dueDate),
+      rows.map((row) => row.amountCents),
+    ],
+  );
+}
+
+/**
+ * Schedules the installments of stored invoices that have none: those stored before the
+ * `scheduled_installments` table existed (milestone 4 data). Runs under the feed lock in one
+ * transaction, with the same arithmetic as ingestion. Returns the number of invoices scheduled.
+ */
+export async function backfillScheduledInstallments(client: pg.PoolClient): Promise<number> {
+  await client.query("BEGIN");
+  try {
+    await client.query("SELECT pg_advisory_xact_lock($1)", [FEED_LOCK_KEY]);
+    const { rows } = await client.query<{
+      invoice_number: string;
+      billing_date: CalendarDate;
+      payment_schedule: PaymentSchedule;
+      amounts: string[];
+    }>(
+      `SELECT i.invoice_number, i.billing_date, i.payment_schedule,
+              array_agg(l.line_amount_cents::text ORDER BY l.line_number) AS amounts
+       FROM invoices i JOIN invoice_lines l ON l.invoice_number = i.invoice_number
+       WHERE NOT EXISTS (SELECT 1 FROM scheduled_installments s WHERE s.invoice_number = i.invoice_number)
+       GROUP BY i.invoice_number`,
+    );
+    const invoices = rows.map((row) => ({
+      invoiceNumber: row.invoice_number,
+      billingDate: row.billing_date,
+      paymentSchedule: row.payment_schedule,
+      lines: row.amounts.map((amount) => ({ lineAmountCents: storedInteger(amount) })),
+    }));
+    if (invoices.length > 0) await insertScheduledInstallments(client, invoices);
+    await client.query("COMMIT");
+    return invoices.length;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  }
 }

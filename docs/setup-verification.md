@@ -134,6 +134,21 @@ Run in the existing Codespace, which predates the Postgres dev-container service
 
 Not run: building the compose-based dev container or a fresh Codespace, hosted CI with the Postgres service, interactive browser use of the report filters (the page was checked through its HTML), and a load test with deliveries near the contract's size limits.
 
+## Milestone 5 (scheduled collections), 2026-09-29
+
+Implemented while milestone 4 was still awaiting review, at the maintainer's request. Both milestones are to be reviewed together. Run in the same Codespace and Postgres 17 as milestone 4, on Node 24.21.0.
+
+| Check | Result |
+| --- | --- |
+| `npm run db:migrate` on the milestone 4 development database | Applied `0002_scheduled_installments.sql`; the database held no invoices, so nothing was backfilled. The backfill of existing invoices is covered by a database test |
+| HTTP flow on `npm run dev` | `npm run generate:data`, then `npm run feed:send` for the 44 closed months and the pending delivery: all applied, 7 replacements |
+| Independent SQL reconciliation of the stored data | 6,468 invoices, 12,757 installments. Per term: Upfront 1,456 / 1,456, 30 Days 2,279 / 2,279, 30/60/90 1,910 / 5,730, Upfront/30/60/90 823 / 3,292. Every invoice's installments sum to its lines (0 mismatches); at most 1 cent between an invoice's installments; scheduled total R$ 87.963.059,70 = invoiced sales |
+| Rendered page (`GET /` with filters) | Separate collections section; unfiltered totals equal the invoiced sales with the reconciliation check passing. Agro billed 2025-12-01 to 2025-12-31: 31 invoices, 59 installments, R$ 478.157,60, due from 2025-12 to 2026-03. Product filter: the explanatory note instead of collections |
+| Mutation spot-check | Remainder to the last installments: 14 tests failed. Due dates through a local-time `Date` plus 24-hour steps: the `America/New_York` time-zone test and the range test failed. Restored |
+| `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, 441 tests in 18 files, production build |
+
+Not run: interactive browser use (the page was checked through its HTML), a fresh Codespace, hosted CI, and the backfill on a database that actually holds milestone 4 invoices (only in the test schema).
+
 ## Codespaces workflow update, 2026-09-27
 
 Codespaces is now the primary documented environment. The existing devcontainer requests 2 CPUs / 8 GB RAM, waits for `npm ci` before setup completes, and opens the forwarded app port in the browser. Port visibility is checked in GitHub's Ports panel rather than relying on the removed, undocumented `portsAttributes.visibility` property. See [the cloud workflow](codespaces.md).

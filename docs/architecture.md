@@ -14,9 +14,11 @@ src/server/                     HTTP upload handler (body cap, query parsing, di
 src/server/db/                  Postgres pool, migration runner, database test support (milestone 4)
 src/server/sales-feed/          delivery endpoint and transactional ingestion (milestone 4)
 src/server/sales-report/        SQL invoiced-sales report and filter options (milestone 4)
+src/server/collections/         SQL scheduled-collections report (milestone 5)
 src/domain/sales-import/        limits, archive pre-flight, structure pre-scan, XLSX adapter, validation, invoices
 src/types/                      declarations for the ExcelJS internal used by the pre-scan
 src/domain/sales-report/        filters, totals, breakdowns, reconciliation, BRL formatting
+src/domain/collections/         installment schedules (terms, cent allocation, due dates) and collections report (milestone 5)
 src/domain/sales-feed/          clean-feed JSON delivery contract, seller territories (milestone 3)
 src/synthetic-data/             seeded synthetic feed generator and answer key (milestone 3)
 scripts/                        generator, db:migrate, db:reset, setup:env, feed:send (run by Node 24's type stripping)

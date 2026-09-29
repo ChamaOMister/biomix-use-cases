@@ -7,6 +7,7 @@
  * Reachable from Node scripts through built-in type stripping, so relative imports keep their
  * `.ts` extension and type-only imports use `import type`.
  */
+import { dueDatesRepresentable, MAX_CALENDAR_DATE } from "../collections/schedule.ts";
 import { isValidCalendarDate, type CalendarDate } from "../sales-import/dates.ts";
 import type { BusinessUnit, PaymentSchedule } from "../sales-import/types.ts";
 import { cityKey, DEFAULT_FEED_REFERENCE, type FeedReference, type FeedSeller } from "./reference-data.ts";
@@ -493,6 +494,13 @@ function readInvoice(value: unknown, path: string, problems: Problems): InvoiceD
     "PAYMENT_SCHEDULE_UNKNOWN",
     "paymentSchedule must be one of the four contract payment schedules, spelled exactly.",
   );
+  if (billingDate !== null && paymentSchedule !== null && !dueDatesRepresentable(billingDate, paymentSchedule)) {
+    read.report(
+      "billingDate",
+      "DATE_INVALID",
+      `billingDate is too late for its payment schedule: an installment would fall due after ${MAX_CALENDAR_DATE}.`,
+    );
+  }
 
   let customer: FeedCustomer | null = null;
   const customerRecord = read.object("customer", CUSTOMER_FIELDS);

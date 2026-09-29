@@ -55,6 +55,7 @@ export async function snapshotSalesData(pool: pg.Pool): Promise<Record<string, u
     products: "SELECT * FROM products ORDER BY product_id",
     invoices: "SELECT * FROM invoices ORDER BY invoice_number",
     invoice_lines: "SELECT * FROM invoice_lines ORDER BY invoice_number, line_number",
+    scheduled_installments: "SELECT * FROM scheduled_installments ORDER BY invoice_number, installment_number",
     sellers: "SELECT * FROM sellers ORDER BY seller_id",
     territory_cities: "SELECT * FROM territory_cities ORDER BY business_unit, state, city",
   };

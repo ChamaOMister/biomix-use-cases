@@ -232,6 +232,20 @@ describe("validateDelivery: field values", () => {
     }
   });
 
+  it("rejects a billing date whose installments would fall due after 9999-12-31", () => {
+    const upfront = "4 installments (Upfront, 30, 60 and 90 days)";
+    expect(validateDelivery(delivery([invoice({ billingDate: "9999-12-31", paymentSchedule: "Upfront" })])).ok).toBe(true);
+    expect(validateDelivery(delivery([invoice({ billingDate: "9999-10-02", paymentSchedule: upfront })])).ok).toBe(true);
+    for (const [billingDate, paymentSchedule] of [
+      ["9999-10-03", upfront],
+      ["9999-12-31", "30 Days"],
+    ]) {
+      expect(codesAt(validateDelivery(delivery([invoice({ billingDate, paymentSchedule })])))).toEqual([
+        "DATE_INVALID /invoices/0/billingDate",
+      ]);
+    }
+  });
+
   it("matches business units and payment schedules exactly", () => {
     for (const businessUnit of ["agro", "AGRO", "Home and Garden", "constructor"]) {
       expect(codesAt(validateDelivery(delivery([invoice({ businessUnit })])))).toEqual([

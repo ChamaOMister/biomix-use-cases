@@ -4,7 +4,7 @@ import type { DeliveryPayload } from "@/domain/sales-feed/contract";
 import { SELLERS } from "@/domain/sales-feed/reference-data";
 import { migrate } from "../db/migrate";
 import { createTestDatabase, hasDatabase, snapshotSalesData, type TestDatabase } from "../db/testing";
-import { FEED_LOCK_KEY, ingestDelivery, type IngestOutcome } from "./ingest";
+import { backfillScheduledInstallments, FEED_LOCK_KEY, ingestDelivery, type IngestOutcome } from "./ingest";
 import { delivery, homeGardenInvoice, invoice, line } from "./testing/fixtures";
 
 let db: TestDatabase;
@@ -27,6 +27,15 @@ async function storedLines(invoiceNumber: string) {
   const { rows } = await db.pool.query(
     `SELECT line_number, product_id, package_quantity, unit_price_cents, line_amount_cents, commission_amount_cents
      FROM invoice_lines WHERE invoice_number = $1 ORDER BY line_number`,
+    [invoiceNumber],
+  );
+  return rows;
+}
+
+async function storedInstallments(invoiceNumber: string) {
+  const { rows } = await db.pool.query(
+    `SELECT installment_number, due_date, amount_cents FROM scheduled_installments
+     WHERE invoice_number = $1 ORDER BY installment_number`,
     [invoiceNumber],
   );
   return rows;
@@ -74,7 +83,11 @@ describe.skipIf(!hasDatabase)("delivery ingestion into Postgres", () => {
   });
 
   it("migrates once and syncs the sellers and their territories", async () => {
-    expect(await migrate(db.pool)).toEqual({ applied: [], alreadyApplied: ["0001_sales_feed.sql"] });
+    expect(await migrate(db.pool)).toEqual({
+      applied: [],
+      alreadyApplied: ["0001_sales_feed.sql", "0002_scheduled_installments.sql"],
+      installmentsBackfilled: 0,
+    });
     const sellers = await db.pool.query("SELECT seller_id, business_unit FROM sellers ORDER BY seller_id");
     expect(sellers.rows).toEqual(SELLERS.map((seller) => ({ seller_id: seller.sellerId, business_unit: seller.businessUnit })));
     const cities = await db.pool.query<{ count: number }>("SELECT count(*)::int AS count FROM territory_cities");
@@ -140,10 +153,52 @@ describe.skipIf(!hasDatabase)("delivery ingestion into Postgres", () => {
       { product_id: "PA2", business_unit: "AGRO" },
       { product_id: "PH1", business_unit: "HOME_GARDEN" },
     ]);
+    // Installments come from each invoice's whole line set: 12,500 + 2,997 + 1,250 = 16,747 cents.
+    expect(await storedInstallments("000001")).toEqual([{ installment_number: 1, due_date: "2025-07-12", amount_cents: "16747" }]);
+    expect(await storedInstallments("000002")).toEqual([{ installment_number: 1, due_date: "2025-06-30", amount_cents: "9960" }]);
+  });
+
+  it("schedules equal installments with cent remainders first, across month and year ends", async () => {
+    await apply(
+      delivery([
+        invoice("000001", {
+          billingDate: "2025-12-15",
+          paymentSchedule: "4 installments (Upfront, 30, 60 and 90 days)",
+          lines: [line("PA1", 10, 1250), line("PA2", 3, 999), line("PA1", 1, 1250)],
+        }),
+        invoice("000002", { billingDate: "2023-12-31", paymentSchedule: "3 installments (30, 60 and 90 days)", lines: [line("PA2", 1, 100)] }),
+      ]),
+    );
+    // 16,747 / 4 = 4,186 remainder 3.
+    expect(await storedInstallments("000001")).toEqual([
+      { installment_number: 1, due_date: "2025-12-15", amount_cents: "4187" },
+      { installment_number: 2, due_date: "2026-01-14", amount_cents: "4187" },
+      { installment_number: 3, due_date: "2026-02-13", amount_cents: "4187" },
+      { installment_number: 4, due_date: "2026-03-15", amount_cents: "4186" },
+    ]);
+    expect(await storedInstallments("000002")).toEqual([
+      { installment_number: 1, due_date: "2024-01-30", amount_cents: "34" },
+      { installment_number: 2, due_date: "2024-02-29", amount_cents: "33" },
+      { installment_number: 3, due_date: "2024-03-30", amount_cents: "33" },
+    ]);
+    // Postgres's own date arithmetic agrees with the TypeScript due dates.
+    const offsets = await db.pool.query<{ offsets: number[] }>(
+      `SELECT array_agg(s.due_date - i.billing_date ORDER BY s.installment_number) AS offsets
+       FROM scheduled_installments s JOIN invoices i USING (invoice_number) GROUP BY invoice_number ORDER BY invoice_number`,
+    );
+    expect(offsets.rows.map((row) => row.offsets)).toEqual([[0, 30, 60, 90], [30, 60, 90]]);
   });
 
   it("replaces a stored invoice with its full new line set, leaving no stale lines", async () => {
-    await apply(delivery([invoice("000001", { lines: [line("PA1", 10, 1250), line("PA2", 3, 999), line("PA3", 7, 500)] })]));
+    await apply(
+      delivery([
+        invoice("000001", {
+          paymentSchedule: "3 installments (30, 60 and 90 days)",
+          lines: [line("PA1", 10, 1250), line("PA2", 3, 999), line("PA3", 7, 500)],
+        }),
+      ]),
+    );
+    expect(await storedInstallments("000001")).toHaveLength(3);
     const correction = delivery([
       invoice("000001", {
         billingDate: "2025-06-13",
@@ -159,6 +214,13 @@ describe.skipIf(!hasDatabase)("delivery ingestion into Postgres", () => {
     const stored = await db.pool.query("SELECT billing_date, payment_schedule, last_delivery_id FROM invoices");
     expect(stored.rows).toEqual([
       { billing_date: "2025-06-13", payment_schedule: "INSTALLMENTS_0_30_60_90", last_delivery_id: correction.deliveryId },
+    ]);
+    // The old 30/60/90 schedule over 16,747 cents is gone; the new one covers 4,995 cents from 06-13.
+    expect(await storedInstallments("000001")).toEqual([
+      { installment_number: 1, due_date: "2025-06-13", amount_cents: "1249" },
+      { installment_number: 2, due_date: "2025-07-13", amount_cents: "1249" },
+      { installment_number: 3, due_date: "2025-08-12", amount_cents: "1249" },
+      { installment_number: 4, due_date: "2025-09-11", amount_cents: "1248" },
     ]);
     // Products are reference data: no longer used on a line, still stored.
     const products = await db.pool.query("SELECT product_id FROM products ORDER BY product_id");
@@ -182,7 +244,31 @@ describe.skipIf(!hasDatabase)("delivery ingestion into Postgres", () => {
       rows.filter((row) => (row as { invoice_number: string }).invoice_number === number);
     expect(only(after.invoices!, "000001")).toEqual(only(before.invoices!, "000001"));
     expect(only(after.invoice_lines!, "000001")).toEqual(only(before.invoice_lines!, "000001"));
+    expect(only(after.scheduled_installments!, "000001")).toEqual(only(before.scheduled_installments!, "000001"));
+    expect(only(after.scheduled_installments!, "000002")).toEqual([
+      { invoice_number: "000002", installment_number: 1, due_date: "2025-07-12", amount_cents: "6300" },
+    ]);
     expect(after.invoices!.map((row) => (row as { invoice_number: string }).invoice_number)).toEqual(["000001", "000002", "000003"]);
+  });
+
+  it("schedules invoices stored without installments when migrating, and only those", async () => {
+    await apply(
+      delivery([
+        invoice("000001", { paymentSchedule: "3 installments (30, 60 and 90 days)", lines: [line("PA1", 10, 1250), line("PA2", 3, 999)] }),
+        homeGardenInvoice("000002"),
+      ]),
+    );
+    const scheduled = await snapshotSalesData(db.pool);
+    // As a milestone 4 database: invoices and lines stored, no installments yet.
+    await db.pool.query("DELETE FROM scheduled_installments WHERE invoice_number = '000001'");
+    expect(await migrate(db.pool)).toMatchObject({ applied: [], installmentsBackfilled: 1 });
+    expect(await snapshotSalesData(db.pool)).toEqual(scheduled);
+    const client = await db.pool.connect();
+    try {
+      expect(await backfillScheduledInstallments(client)).toBe(0);
+    } finally {
+      client.release();
+    }
   });
 
   it("updates a stored customer's details but never its owning seller", async () => {

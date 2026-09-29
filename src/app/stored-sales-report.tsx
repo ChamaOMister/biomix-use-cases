@@ -1,8 +1,10 @@
 // Server component: queries Postgres at request time. Filters travel in the URL (a GET form), so a
 // filtered view can be reloaded or shared and needs no client-side JavaScript.
 import Link from "next/link";
+import type { CollectionsReportResult } from "@/domain/collections/report";
 import type { CalendarDate } from "@/domain/sales-import/dates";
 import type { BusinessUnit } from "@/domain/sales-import/types";
+import { buildStoredCollectionsReport } from "@/server/collections/stored-collections";
 import { databaseErrorDiagnostics, DatabaseNotConfiguredError, getPool } from "@/server/db/pool";
 import {
   buildStoredSalesReport,
@@ -11,6 +13,7 @@ import {
   type StoredReportFilters,
 } from "@/server/sales-report/stored-report";
 import type { SalesReportResult } from "@/domain/sales-report/report";
+import { CollectionsView } from "./collections-view";
 import { BUSINESS_UNIT_NAMES, integer, SalesReportView } from "./sales-report-view";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -41,14 +44,18 @@ export function filtersFromSearchParams(params: SearchParams): StoredReportFilte
 }
 
 type Loaded =
-  | { ok: true; options: StoredFilterOptions; report: SalesReportResult }
+  | { ok: true; options: StoredFilterOptions; report: SalesReportResult; collections: CollectionsReportResult }
   | { ok: false; message: string };
 
 async function load(filters: StoredReportFilters): Promise<Loaded> {
   try {
     const pool = getPool();
-    const [options, report] = await Promise.all([storedFilterOptions(pool), buildStoredSalesReport(pool, filters)]);
-    return { ok: true, options, report };
+    const [options, report, collections] = await Promise.all([
+      storedFilterOptions(pool),
+      buildStoredSalesReport(pool, filters),
+      buildStoredCollectionsReport(pool, filters),
+    ]);
+    return { ok: true, options, report, collections };
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
       return { ok: false, message: "The database is not configured: DATABASE_URL is not set. See docs/database.md." };
@@ -68,14 +75,27 @@ async function load(filters: StoredReportFilters): Promise<Loaded> {
 export async function StoredSalesReport({ filters }: { filters: StoredReportFilters }) {
   const loaded = await load(filters);
   return (
-    <section className="panel" aria-labelledby="stored-title">
-      <h2 id="stored-title">Invoiced sales: stored feed data</h2>
-      {!loaded.ok ? (
-        <p className="panel error">{loaded.message}</p>
-      ) : (
-        <StoredReportBody filters={filters} options={loaded.options} report={loaded.report} />
-      )}
-    </section>
+    <>
+      <section className="panel" aria-labelledby="stored-title">
+        <h2 id="stored-title">Invoiced sales: stored feed data</h2>
+        {!loaded.ok ? (
+          <p className="panel error">{loaded.message}</p>
+        ) : (
+          <StoredReportBody filters={filters} options={loaded.options} report={loaded.report} />
+        )}
+      </section>
+      {loaded.ok && loaded.options.appliedDeliveries > 0 ? (
+        <section className="panel" aria-labelledby="collections-title">
+          <h2 id="collections-title">Scheduled collections: stored feed data</h2>
+          <p className="muted">Same filters as the invoiced sales above.</p>
+          {loaded.collections.ok ? (
+            <CollectionsView report={loaded.collections.report} />
+          ) : (
+            <p className={loaded.collections.code === "FILTER_SELECTS_LINES" ? "muted" : "panel error"}>{loaded.collections.message}</p>
+          )}
+        </section>
+      ) : null}
+    </>
   );
 }
 

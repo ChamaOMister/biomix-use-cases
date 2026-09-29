@@ -161,7 +161,7 @@
             "$ref": "#/components/schemas/Identifier",
             "description": "Unique across all deliveries; a string, so leading zeroes are kept."
           },
-          "billingDate": { "type": "string", "format": "date", "description": "A real calendar date, YYYY-MM-DD." },
+          "billingDate": { "type": "string", "format": "date", "description": "A real calendar date, YYYY-MM-DD, early enough that every installment of the payment schedule falls due by 9999-12-31." },
           "customer": { "$ref": "#/components/schemas/Customer" },
           "sellerId": {
             "$ref": "#/components/schemas/Identifier",

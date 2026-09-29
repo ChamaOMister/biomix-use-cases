@@ -1,9 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildCollectionsReport } from "@/domain/collections/report";
+import { PAYMENT_SCHEDULE_OFFSETS } from "@/domain/collections/schedule";
 import { validateDelivery, type InvoicePayload } from "@/domain/sales-feed/contract";
 import { SELLERS } from "@/domain/sales-feed/reference-data";
 import type { SalesLine } from "@/domain/sales-import/types";
 import { buildSalesReport, type ReportFilters } from "@/domain/sales-report/report";
 import { generateSyntheticFeed, replayDeliveries } from "@/synthetic-data/generate";
+import { buildStoredCollectionsReport } from "../collections/stored-collections";
 import { createTestDatabase, hasDatabase, type TestDatabase } from "../db/testing";
 import { ingestDelivery } from "../sales-feed/ingest";
 import { buildStoredSalesReport, storedFilterOptions, type StoredReportFilters } from "./stored-report";
@@ -53,7 +56,7 @@ function pureFilters({ sellerId, ...rest }: StoredReportFilters): ReportFilters 
   return { ...rest, ...(sellerId !== undefined ? { sellerName: SELLER_NAME.get(sellerId)! } : {}) };
 }
 
-describe.skipIf(!hasDatabase)("stored report against the pure report module", () => {
+describe.skipIf(!hasDatabase)("stored reports against the pure report modules", () => {
   let db: TestDatabase;
   let lines: SalesLine[];
   let summary: ReturnType<typeof generateSyntheticFeed>["summary"];
@@ -118,6 +121,50 @@ describe.skipIf(!hasDatabase)("stored report against the pure report module", ()
     const pure = buildSalesReport(lines, pureFilters(filters()));
     expect(stored).toEqual(pure);
     expect(stored.ok && stored.report.reconciled).toBe(true);
+  });
+
+  it.each(cases)("scheduled collections match the pure module: %s", async (_name, filters) => {
+    const stored = await buildStoredCollectionsReport(db.pool, filters());
+    const pure = buildCollectionsReport(lines, pureFilters(filters()));
+    expect(stored).toEqual(pure);
+    if (filters().productId) {
+      expect(stored).toMatchObject({ ok: false, code: "FILTER_SELECTS_LINES" });
+    } else {
+      expect(stored.ok && stored.report.reconciled).toBe(true);
+      // The installments of the selected invoices sum exactly to the invoiced sales of the same selection.
+      const sales = await buildStoredSalesReport(db.pool, filters());
+      expect(stored.ok && sales.ok && stored.report.totals.scheduledCents).toBe(sales.ok && sales.report.totals.salesCents);
+      expect(stored.ok && sales.ok && stored.report.totals.invoiceCount).toBe(sales.ok && sales.report.totals.invoiceCount);
+    }
+  });
+
+  it("stores every invoice's installments summing to its lines, due on its schedule's offsets", async () => {
+    const { rows } = await db.pool.query<{
+      payment_schedule: keyof typeof PAYMENT_SCHEDULE_OFFSETS;
+      offsets: number[];
+      amounts: string[];
+      line_total: string;
+    }>(
+      `SELECT i.payment_schedule,
+              array_agg(s.due_date - i.billing_date ORDER BY s.installment_number) AS offsets,
+              array_agg(s.amount_cents::text ORDER BY s.installment_number) AS amounts,
+              (SELECT sum(l.line_amount_cents) FROM invoice_lines l WHERE l.invoice_number = i.invoice_number)::text AS line_total
+       FROM invoices i JOIN scheduled_installments s ON s.invoice_number = i.invoice_number
+       GROUP BY i.invoice_number`,
+    );
+    expect(rows).toHaveLength(new Set(lines.map((line) => line.invoiceNumber)).size);
+    for (const row of rows) {
+      // Postgres's own date arithmetic gives the contract's day offsets.
+      expect(row.offsets).toEqual(PAYMENT_SCHEDULE_OFFSETS[row.payment_schedule]);
+      const amounts = row.amounts.map(BigInt);
+      expect(amounts.reduce((sum, amount) => sum + amount, 0n)).toBe(BigInt(row.line_total));
+      // Equal installments; the extra cents come first.
+      amounts.slice(1).forEach((amount, index) => {
+        const previous = amounts[index]!;
+        expect(previous === amount || previous === amount + 1n).toBe(true);
+      });
+    }
+    expect(new Set(rows.map((row) => row.payment_schedule))).toEqual(new Set(Object.keys(PAYMENT_SCHEDULE_OFFSETS)));
   });
 
   it("rejects an invalid period like the pure report", async () => {

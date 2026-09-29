@@ -1,6 +1,6 @@
 # Postgres and delivery ingestion
 
-Status: implemented in milestone 4, following [decision 002](architecture-002-clean-data-platform.md). The endpoint `POST /api/sales-feed/deliveries` stores clean-feed deliveries in Postgres, and the report page reads from the database. Scheduled installments (`scheduled_installments`) follow in milestone 5.
+Status: implemented in milestone 4, following [decision 002](architecture-002-clean-data-platform.md). The endpoint `POST /api/sales-feed/deliveries` stores clean-feed deliveries in Postgres, and the report page reads from the database. Milestone 5 added `scheduled_installments` and the collections report ([scheduled collections](collections.md)).
 
 ## Setup
 
@@ -10,7 +10,7 @@ Status: implemented in milestone 4, following [decision 002](architecture-002-cl
 
 | Command | Effect |
 | --- | --- |
-| `npm run db:migrate` | Applies new files in `db/migrations/` and syncs sellers and territory cities from `src/domain/sales-feed/reference-data.ts`. Safe to repeat |
+| `npm run db:migrate` | Applies new files in `db/migrations/`, syncs sellers and territory cities from `src/domain/sales-feed/reference-data.ts`, and schedules the installments of stored invoices that have none (data stored before milestone 5). Safe to repeat |
 | `npm run db:reset -- --yes` | Deletes all stored feed data and re-migrates. Development only |
 | `npm run setup:env` | Adds a random `SALES_FEED_API_KEY` to `.env.local` if it has none; never prints it. Restart `npm run dev` afterwards |
 | `npm run feed:send -- <files or directories>` | Posts delivery files in name order to the running app; stops at the first delivery that is not applied. `--url` changes the target (default `http://localhost:3000`) |
@@ -28,7 +28,7 @@ Open the app: the report shows the stored invoices, with filters in the URL. Sen
 
 ## Tables
 
-The schema is in [`db/migrations/0001_sales_feed.sql`](../db/migrations/0001_sales_feed.sql). It follows the tables proposed in decision 002, with these details:
+The schema is in [`db/migrations/0001_sales_feed.sql`](../db/migrations/0001_sales_feed.sql) and [`0002_scheduled_installments.sql`](../db/migrations/0002_scheduled_installments.sql). It follows the tables proposed in decision 002, with these details:
 
 - `feed_deliveries` has one row per received delivery ID: status `applied` with the counts, totals and billing-date range, or status `rejected` with the located errors. It also stores a SHA-256 of the payload (parsed and re-serialized, so whitespace does not matter) to detect a reused ID.
 - `invoice_lines` is keyed by invoice number and `line_number`, the line's 1-based position in the delivered invoice. So repeated lines of the same product stay distinct. The line also repeats the invoice's business unit, only so that a foreign key can require the product to belong to that unit.
@@ -45,7 +45,7 @@ Migrations are append-only: each applied file is recorded with a checksum in `sc
 2. If the `deliveryId` was already received: same content → return the stored result (header `Idempotent-Replayed: true`); different content → `409`. Nothing is written.
 3. Read the stored owners of the delivery's customers and the stored business units of its products. Validate the payload against the contract with them. A customer keeps its owning seller, and a product keeps its business unit (`CUSTOMER_SELLER_MISMATCH`, `PRODUCT_ATTRIBUTE_CONFLICT`).
 4. Any error → record the rejection in `feed_deliveries` and change nothing else (`422`). A corrected delivery needs a new `deliveryId`. A payload without a valid `deliveryId` cannot be recorded; it is just rejected.
-5. Otherwise record the delivery, upsert its customers (details update; the owner never changes) and products (name and category update; the unit never changes). Delete the old lines of every invoice being replaced, upsert the invoices and insert all delivered lines. Invoices absent from the delivery are not touched; nothing is deleted.
+5. Otherwise record the delivery, upsert its customers (details update; the owner never changes) and products (name and category update; the unit never changes). Delete the old lines and installments of every invoice being replaced, upsert the invoices, insert all delivered lines, and insert each invoice's installments, computed in TypeScript from its whole line set ([scheduled collections](collections.md)). Invoices absent from the delivery are not touched; nothing is deleted.
 
 If any statement fails, the transaction rolls back and nothing is recorded, not even the delivery ID (`500`). The same delivery can be sent again.
 
@@ -53,9 +53,11 @@ The endpoint (`src/server/sales-feed/delivery-handler.ts`) checks, in order: the
 
 ## Report
 
-`src/server/sales-report/stored-report.ts` computes the totals, month and business-unit breakdowns in one SQL statement (`GROUPING SETS`). It returns the same `SalesReport` shape as the pure `buildSalesReport` and shares its filter checks and reconciliation. The seller filter uses the seller ID. The tests replay the full seeded feed into Postgres and require both implementations to return identical reports for a set of filters.
+`src/server/sales-report/stored-report.ts` computes the totals, month and business-unit breakdowns in one SQL statement (`GROUPING SETS`). It returns the same `SalesReport` shape as the pure `buildSalesReport` and shares its filter checks and reconciliation. The seller filter uses the seller ID. The tests replay the full seeded feed into Postgres and require both implementations to return identical sales and collections reports for a set of filters.
 
 The page is a server component: filters are a GET form, so every filtered view has its own URL. Without a database, or before `db:migrate`, the page explains what to run instead of failing.
+
+`src/server/collections/stored-collections.ts` computes the scheduled collections of the same filters in one SQL statement: totals, due-month and payment-schedule breakdowns, and the invoiced sales of the selected invoices read from `invoice_lines`, for the reconciliation. It returns the same result as the pure `buildCollectionsReport`. Filters select whole invoices; a product filter is refused. See [scheduled collections](collections.md).
 
 The XLSX upload is unchanged: it validates a workbook and shows an in-browser report of that file only. It stores nothing.
 
