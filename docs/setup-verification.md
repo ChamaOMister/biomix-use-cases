@@ -166,6 +166,26 @@ Implemented while milestones 4 and 5 were awaiting review, at the maintainer's r
 
 Not run: a fresh Codespace, the tag-triggered release job and the published download link (no tag has been pushed), and reviewer feedback. These remain the open items of milestone 6.
 
+## Fresh Codespace, 2026-09-29
+
+A new Codespace created by the maintainer from branch `milestones-3-6` (commit `aff1bbe`), built from the compose-based dev container: an Ubuntu 24.04 workspace container and a `postgres:17` service. Nothing was installed by hand. The checks below ran from its terminal.
+
+| Check | Result |
+| --- | --- |
+| Toolchain | `node --version` → `v24.21.0` (matches `.nvmrc`), npm 11.19.0 |
+| Creation steps | `node_modules/` present, `.env.local` written by `setup:env` (mode 600), `DATABASE_URL` set by the dev container |
+| Postgres | PostgreSQL 17.11 reached at `localhost:5432` through the shared network. `npm run db:migrate` → `0 applied, 2 already applied`, so the creation step had migrated it. No invoices stored |
+| `npm run check` | Exit 0: ESLint, typegen + TypeScript, 462 tests in 20 files, none skipped (the database tests ran), production build |
+| `npm run generate:data` | Same figures as the earlier Codespace: 6,468 invoices, 19,361 lines, 305 customers, annual deviation +0.04% / −0.03% / −0.06% / −0.10% |
+| Demo flow on `npm run dev` ([demo](demo.md)) | 44 closed months applied. `2026-09-rejected.json` → rejected, `LINE_AMOUNT_MISMATCH` at `/invoices/145/lines/0/lineAmountCents` and `CITY_OUTSIDE_TERRITORY` at `/invoices/2/customer/city`. Pending 2026-09 → applied, 145 added, 1 replaced, 428 lines. Sent again → original result, marked already received |
+| SQL reconciliation | 6,468 invoices, 19,361 lines and 12,757 installments; lines and installments each sum to R$ 87.963.059,70. No test schemas left behind |
+| Rendered report (`GET /`, checked through its HTML) | `45 deliveries applied · 1 rejected`, R$ 87.963.059,70 unfiltered. `AGRO`, 2025-01-01 to 2025-12-31 → R$ 15.584.715,50, equal to a direct SQL sum. An invalid date shows the period error. The dev server log for the rejection held only IDs, counts and error codes |
+| `npm run snapshot:build` | Wrote the 0.90 MiB snapshot |
+| Port privacy | An unauthenticated request to the forwarded port 3000 address → 302 to GitHub sign-in, so the port is not public |
+| XLSX QA files | The Git-ignored `data/private/qa/` files do not carry over to a new Codespace. They were recreated to the layout in [manual QA](manual-qa.md) and posted to `/api/sales-imports`: `qa-valid.xlsx` → accepted, 3 lines, R$ 2.830,60, commission R$ 141,53. `qa-invalid.xlsx` → `FIELD_REQUIRED` at Sales · X4. `qa-multi-sheet.xlsx` → `SHEET_SELECTION_AMBIGUOUS` listing `Sales` and `Other`; with `sheet=Sales` → accepted |
+
+Waived by the maintainer on 2026-09-29, not performed: opening the forwarded HTTPS preview in a browser, the Ports panel showing **Private**, the [manual browser QA](manual-qa.md) steps through that preview, hot reload of a temporary label edit, and stop/resume followed by a restarted dev server. The browser flows themselves passed earlier in headless Chromium (milestone 6 above and [manual QA](manual-qa.md)), but not through a Codespace's forwarded address.
+
 ## Codespaces workflow update, 2026-09-27
 
 Codespaces is now the primary documented environment. The existing devcontainer requests 2 CPUs / 8 GB RAM, waits for `npm ci` before setup completes, and opens the forwarded app port in the browser. Port visibility is checked in GitHub's Ports panel rather than relying on the removed, undocumented `portsAttributes.visibility` property. See [the cloud workflow](codespaces.md).

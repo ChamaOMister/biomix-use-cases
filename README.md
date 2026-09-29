@@ -95,7 +95,7 @@ Known limits of Project 1:
 - The feed endpoint is protected only by a development API key, and delivery IDs are chosen by the sender.
 - Collections are contractual installments. There are no actual payments, balances or a due-date view.
 - The report reads all stored data and is sized for the synthetic dataset, not for production volumes.
-- A fresh Codespace, hosted CI and a published release have not been verified yet ([setup verification](docs/setup-verification.md)).
+- A fresh Codespace and hosted CI passed their terminal checks. Browser use through a Codespace's forwarded port, hot reload, stop/resume and a published release have not been verified ([setup verification](docs/setup-verification.md)).
 
 ## Contribution and AI assistance
 

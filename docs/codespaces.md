@@ -54,9 +54,9 @@ When resuming a stopped Codespace, run `npm run dev` again if the server is no l
 | `feed:send` reports `FEED_NOT_CONFIGURED` or `UNAUTHORIZED` | Run `npm run setup:env` and restart `npm run dev` so the server reads `.env.local` |
 | `feed:send` reports `409 DELIVERY_ID_REUSED` | The files were regenerated with different content under the same delivery IDs; run `npm run db:reset -- --yes` and send again |
 
-## Fresh-Codespace verification (pending)
+## Fresh-Codespace verification
 
-Run these in a newly created Codespace and record results in [setup-verification.md](setup-verification.md):
+A fresh Codespace was checked on 2026-09-29. The terminal checks passed, and the maintainer waived the browser, hot-reload and stop/resume steps. See [setup verification](setup-verification.md#fresh-codespace-2026-09-29). To repeat the verification, run these in a newly created Codespace and record results in [setup-verification.md](setup-verification.md):
 
 - Confirm `node --version` is `v24.21.0` and dependency installation completed.
 - Confirm Postgres is running and migrated (`npm run db:migrate` reports the migration as already applied).
