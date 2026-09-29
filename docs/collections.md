@@ -34,11 +34,13 @@ The page shows invoiced sales and scheduled collections in separate sections. Th
 
 **Filters select whole invoices.** Customer, seller, business unit and period are invoice attributes, so a selected invoice brings all its installments.
 
-- **The period selects invoices by billing date**, the same invoices as the sales report. Their installments may fall due after the period. For example, December invoices on 90 days fall due in March. A view of installments *due* in a period is a different question and is not implemented (see open question below).
+- **The period selects invoices by billing date**, the same invoices as the sales report. Their installments may fall due after the period. For example, December invoices on 90 days fall due in March. A view of installments *due* in a period is a different question and is deferred (see [due-date filtering](#due-date-filtering-deferred) below).
 - **The product filter is not applied to collections.** A product selects individual lines, but installments belong to the whole invoice. Showing them would mean either the whole invoices, which would not match the product's sales, or line shares allocated from each schedule. Neither is chosen, so with a product filter the collections section explains that it is not shown (`FILTER_SELECTS_LINES`). The invoiced-sales section still shows the product's lines.
 
 **Reconciliation.** The page checks that the installments of the selected invoices sum exactly to the invoiced sales of those same invoices. It also checks that both breakdowns sum to the totals. The stored report reads the sales from `invoice_lines`, independently of `scheduled_installments`, so a missing or stale installment shows as a failed check. In the due-month breakdown, an invoice counts in each month where it has an installment due. Only the installment counts and amounts in that breakdown add up to the totals.
 
-## Open question for the maintainer
+## Due-date filtering: deferred
 
-- Should collections also be filterable by **due date** (for example, "what falls due in October")? That would make the period mean something different in each section, so it is left for a decision.
+Decided by the maintainer on 2026-09-29 ([Project 1 business decisions](sales-feed-contract.md#project-1-business-decisions)): due-date filtering is **deferred from Project 1**. The existing period filter keeps selecting invoices by billing date, in both sections. Collections include every contractual installment of the selected invoices, even when its due date falls outside that billing period. So the installments always reconcile with the selected invoices' full sales.
+
+A future due-date view ("what falls due in October") should have its own, explicitly labeled controls, separate from the billing period. Those controls select existing installments without recalculating their schedules. The installments due in a period are not expected to equal the full sales of any set of invoices.

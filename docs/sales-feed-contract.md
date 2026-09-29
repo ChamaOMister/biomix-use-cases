@@ -46,8 +46,16 @@ The stored checks take lookups (`customerOwner`, `productBusinessUnit`). The end
 - **Commission is blocking here.** The XLSX importer treats a 5% mismatch as a warning, because it reads exports whose rate was not a confirmed company rule. The clean feed states the convention as a contract rule, and milestone 3 requires generated data to satisfy it.
 - **Empty deliveries are rejected** to catch an accidental empty send. A genuinely empty month would need this relaxed.
 - **Segment is free text.** The generator uses the five listed segments, but the contract does not turn them into an enumeration.
-- **Invoice identity:** invoice numbers are unique across all deliveries (clean-data guarantee). Within one delivery this is checked; across deliveries a repeated number means replacement.
+- **Invoice identity:** invoice numbers are unique across all deliveries (clean-data guarantee). Within one delivery this is checked; across deliveries a repeated number means replacement, by the last applied delivery ([business decisions](#project-1-business-decisions)).
 - The endpoint adds the checks outside the payload rules: the API key, content type, 16 MiB body limit and JSON syntax, a reused `deliveryId` with different content, and the stored product business unit. Its responses are in the [OpenAPI description](api/sales-feed.openapi.json) and the [database guide](database.md).
+
+## Project 1 business decisions
+
+Recorded by the maintainer on 2026-09-29, after the [milestones 4–6 review](reviews/milestone-4-6-review.md). They fix the feed's policy for Project 1; they are not defect corrections.
+
+- **Last received wins.** The last successfully applied delivery with a new `deliveryId` replaces each of its invoices whole. A rejected delivery changes no invoice, and a recognized retry writes nothing. The endpoint does not compare invoice versions: an older copy of an invoice sent under a new `deliveryId` overwrites a later correction. **The sender is responsible for delivery order.** A retry must keep its `deliveryId`, so it returns the original result without writing again; sending unchanged content under a new ID applies it again. `npm run feed:send` stops at the first delivery that is not applied, so later files are not sent after a failure. That protects this one ordered sender; it is not an endpoint guarantee against several or out-of-order senders. Source revisions and rejection of stale updates are outside Project 1.
+- **No cancellation.** The feed never deletes invoices. An invoice absent from a delivery stays as stored; leaving it out of a later delivery does not cancel it. Cancelled records must be excluded upstream before their first delivery. Cancelling an invoice that is already stored is outside Project 1, and there is no cancellation or void event. A future one would have to define its effect on reported sales and scheduled installments while keeping history.
+- **Due-date filtering is deferred from Project 1.** The period filter selects invoices by billing date, and collections include every contractual installment of the selected invoices, even those due outside that period ([scheduled collections](collections.md#due-date-filtering-deferred)).
 
 ## Seller territories
 

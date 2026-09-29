@@ -50,6 +50,8 @@ Migrations are append-only: each applied file is recorded with a checksum in `sc
 
 If any statement fails, the transaction rolls back and nothing is recorded, not even the delivery ID (`500`). The same delivery can be sent again.
 
+The last applied delivery wins and the sender is responsible for delivery order; there is no cancellation ([Project 1 business decisions](sales-feed-contract.md#project-1-business-decisions)).
+
 The endpoint (`src/server/sales-feed/delivery-handler.ts`) checks, in order: the API key is configured (`503`), the `X-Api-Key` header matches (`401`, compared in constant time), `Content-Type: application/json` (`415`), at most 16 MiB (`413`), and UTF-8 JSON (`400`). Server logs record the delivery ID, outcome, counts and error codes only, never payload values or messages.
 
 ## Report

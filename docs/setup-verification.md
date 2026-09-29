@@ -158,7 +158,7 @@ Implemented while milestones 4 and 5 were awaiting review, at the maintainer's r
 | `npm install --save-dev --save-exact esbuild@0.28.2` | Lockfile updated. npm skipped esbuild's install script; esbuild works without it, since the binary comes from its platform package. `npm audit --omit=dev` is unchanged (development dependency) |
 | Demo flow on `npm run dev` ([demo](demo.md)) | After `db:reset`: 44 closed months applied. `feed/demo/2026-09-rejected.json` → rejected, 2 errors (`LINE_AMOUNT_MISMATCH` at `/invoices/145/lines/0/lineAmountCents`, `CITY_OUTSIDE_TERRITORY` at `/invoices/2/customer/city`), nothing stored. The pending 2026-09 delivery → applied, 145 added, 1 replaced, 428 lines |
 | Manual reconciliation | For each of the 8 unit-years, the invoiced sales in `feed/summary.json`, a direct SQL sum over the dev database, the snapshot's embedded data through `buildSalesReport`, and its scheduled collections through `buildCollectionsReport` are equal to the cent (Agro 2025: R$ 15.584.715,50). Stored installments: 12,757 summing to R$ 87.963.059,70, equal to the snapshot's |
-| Browser run | A throwaway headless Chromium (Playwright 1.63.0, `chrome-headless-shell`), with its runtime libraries and fonts unpacked into a temporary session folder, not the container or the project. 23 assertions, all passing. **App:** unfiltered totals, `45 deliveries applied · 1 rejected`, both checks passing, Agro 2025 through the form with the filters in the URL, product filter note, Clear filters, no page errors. **Snapshot from `file://` in an offline context:** same totals as the app unfiltered and for Agro 2025, product note, period error, Clear filters, no request besides the file itself, no console errors or policy violations, no horizontal scroll at 390 px, totals readable with JavaScript disabled. Screenshots were checked in light and dark mode and deleted with the folder |
+| Browser run | A throwaway headless Chromium (Playwright 1.63.0, `chrome-headless-shell`), with its runtime libraries and fonts unpacked into a temporary session folder, not the container or the project. 23 assertions, all passing. **App:** unfiltered totals, `45 deliveries applied · 1 rejected`, both checks passing, Agro 2025 through the form with the filters in the URL, product filter note, Clear filters, no page errors. **Snapshot from `file://` in an offline context:** same totals as the app unfiltered and for Agro 2025, product note, period error, Clear filters, no request besides the file itself, no console errors or policy violations, no horizontal scroll at 390 px (**incorrect**: the review measured a 497 px page, R3; corrected below), totals readable with JavaScript disabled. Screenshots were checked in light and dark mode and deleted with the folder |
 | Mutation spot-check | Removing the script's change listener: the browser-filter test failed. Leaving the pending delivery out of the snapshot: 3 tests failed. Restored |
 | `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, 462 tests in 20 files, production build |
 
@@ -185,6 +185,23 @@ A new Codespace created by the maintainer from branch `milestones-3-6` (commit `
 | XLSX QA files | The Git-ignored `data/private/qa/` files do not carry over to a new Codespace. They were recreated to the layout in [manual QA](manual-qa.md) and posted to `/api/sales-imports`: `qa-valid.xlsx` → accepted, 3 lines, R$ 2.830,60, commission R$ 141,53. `qa-invalid.xlsx` → `FIELD_REQUIRED` at Sales · X4. `qa-multi-sheet.xlsx` → `SHEET_SELECTION_AMBIGUOUS` listing `Sales` and `Other`; with `sheet=Sales` → accepted |
 
 Waived by the maintainer on 2026-09-29, not performed: opening the forwarded HTTPS preview in a browser, the Ports panel showing **Private**, the [manual browser QA](manual-qa.md) steps through that preview, hot reload of a temporary label edit, and stop/resume followed by a restarted dev server. The browser flows themselves passed earlier in headless Chromium (milestone 6 above and [manual QA](manual-qa.md)), but not through a Codespace's forwarded address.
+
+## Milestones 4–6 review corrections, 2026-09-29
+
+Corrections for the [milestones 4–6 review](reviews/milestone-4-6-review.md) (R1, R2, R3), on branch `milestones-3-6` from `53f68e3`, uncommitted. Same Codespace, Postgres 17.11 and Node 24.21.0. Probes, snapshots and logs stayed under `/tmp`; database probes used new schemas and dropped them. The development data was only read.
+
+| Check | Result |
+| --- | --- |
+| R1 regressions without the fix | 5 of the new validator, ingestion and endpoint tests fail; all pass with it |
+| R2 regressions with the old hash | 6 of the new hash, ingestion and endpoint tests fail; all pass with the new hash |
+| `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, **477 passed, 0 skipped** in 20 files, production build |
+| R1 reproduction | `REVIEW-\ud800` (100 cents) and `REVIEW-\ud801` (200 cents): both `TEXT_INVALID` at `/invoices/0/invoiceNumber`, directly and over HTTP (`422`). Nothing stored. A customer name with `\ud800` over HTTP → `422 TEXT_INVALID` at `/invoices/0/customer/name` |
+| R2 reproduction | Reordered top-level and nested fields → original result, replayed, directly and over HTTP (`200`, and `422` for a rejected delivery). Changed content under the same ID → `409` |
+| Existing development receipts | All 46 generated deliveries match their stored receipt only by the earlier field-order hash. Ingestion still accepts that hash, so `feed:send` resends replay as before ([database guide](database.md)) |
+| R3 browser check | Headless Chromium, snapshot from `file://`, offline, under its policy. Before the fix: 497 px at 390 wide (unfiltered and Agro 2025), 472 px for one customer. After: 390 px in every view (unfiltered, Agro 2025, one customer, one product), wide tables scroll inside their wrappers. 768, 1280 and 1440 px unchanged and fitting. Only the file was requested; no policy violations or page errors. Totals unchanged |
+| Live report page | Measured for comparison only: 390 px at 390 wide, unfiltered and Agro 2025, so R3 does not affect it |
+
+The snapshot's bytes changed: the CSS and, through the bundled contract labels, minified names in the script. The embedded data is unchanged.
 
 ## Codespaces workflow update, 2026-09-27
 

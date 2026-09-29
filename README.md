@@ -93,7 +93,8 @@ Project 2 will be an independently runnable sales investigation copilot. Project
 Known limits of Project 1:
 
 - The feed endpoint is protected only by a development API key, and delivery IDs are chosen by the sender.
-- Collections are contractual installments. There are no actual payments, balances or a due-date view.
+- The last applied delivery wins: the sender is responsible for delivery order, and an older invoice sent under a new delivery ID overwrites a correction. Invoices are never cancelled or deleted through the feed ([business decisions](docs/sales-feed-contract.md#project-1-business-decisions)).
+- Collections are contractual installments. There are no actual payments, balances or a due-date view (deferred; the period selects invoices by billing date).
 - The report reads all stored data and is sized for the synthetic dataset, not for production volumes.
 - A fresh Codespace and hosted CI passed their terminal checks. Browser use through a Codespace's forwarded port, hot reload, stop/resume and a published release have not been verified ([setup verification](docs/setup-verification.md)).
 
