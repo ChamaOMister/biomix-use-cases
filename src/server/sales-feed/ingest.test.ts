@@ -4,7 +4,14 @@ import type { DeliveryPayload } from "@/domain/sales-feed/contract";
 import { SELLERS } from "@/domain/sales-feed/reference-data";
 import { migrate } from "../db/migrate";
 import { createTestDatabase, hasDatabase, snapshotSalesData, type TestDatabase } from "../db/testing";
-import { backfillScheduledInstallments, FEED_LOCK_KEY, ingestDelivery, type IngestOutcome } from "./ingest";
+import {
+  backfillScheduledInstallments,
+  FEED_LOCK_KEY,
+  ingestDelivery,
+  legacyPayloadHash,
+  payloadHash,
+  type IngestOutcome,
+} from "./ingest";
 import { delivery, homeGardenInvoice, invoice, line } from "./testing/fixtures";
 
 let db: TestDatabase;
@@ -73,6 +80,44 @@ async function whileFeedLocked<T>(start: () => Promise<T>[]): Promise<T[]> {
   }
   return Promise.all(pending);
 }
+
+/** The same JSON content with the fields of every object in reverse order. */
+function reversedFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(reversedFields);
+  if (typeof value !== "object" || value === null) return value;
+  return Object.fromEntries(Object.entries(value).reverse().map(([key, item]) => [key, reversedFields(item)]));
+}
+
+describe("payloadHash", () => {
+  const payload = delivery([invoice("000001", { lines: [line("PA1", 10, 1250), line("PA2", 3, 999)] }), invoice("000002")]);
+
+  it("ignores object field order at every level", () => {
+    const hash = payloadHash(payload);
+    expect(JSON.stringify(reversedFields(payload))).not.toBe(JSON.stringify(payload));
+    expect(payloadHash(reversedFields(payload))).toBe(hash);
+    expect(payloadHash({ invoices: payload.invoices, deliveryId: payload.deliveryId })).toBe(hash);
+    const [first, second] = payload.invoices;
+    const customerReversed = { ...first!, customer: reversedFields(first!.customer) };
+    expect(payloadHash({ ...payload, invoices: [customerReversed, second] })).toBe(hash);
+    expect(payloadHash(JSON.parse(JSON.stringify(payload, null, 2)))).toBe(hash);
+  });
+
+  it("keeps array order and values significant", () => {
+    const hash = payloadHash(payload);
+    const [first, second] = payload.invoices;
+    expect(payloadHash({ ...payload, invoices: [second, first] })).not.toBe(hash);
+    expect(payloadHash({ ...payload, invoices: [{ ...first!, lines: [...first!.lines].reverse() }, second] })).not.toBe(hash);
+    expect(payloadHash({ ...payload, invoices: [{ ...first!, customer: { ...first!.customer, name: "Fictional Other" } }, second] })).not.toBe(hash);
+    // The same digits as a string are different content.
+    expect(payloadHash({ a: 1 })).not.toBe(payloadHash({ a: "1" }));
+    expect(payloadHash({ a: { b: 1, c: 2 } })).not.toBe(payloadHash({ a: { b: 2, c: 1 } }));
+  });
+
+  it("differs from the field-order hash recorded before, except for already sorted payloads", () => {
+    expect(legacyPayloadHash(payload)).not.toBe(payloadHash(payload));
+    expect(legacyPayloadHash({ a: [{ b: 1, c: 2 }] })).toBe(payloadHash({ a: [{ c: 2, b: 1 }] }));
+  });
+});
 
 describe.skipIf(!hasDatabase)("delivery ingestion into Postgres", () => {
   beforeEach(async () => {
@@ -434,6 +479,91 @@ describe.skipIf(!hasDatabase)("delivery ingestion into Postgres", () => {
       expect(await ingest(changed)).toEqual({ kind: "delivery-id-reused", deliveryId: first.deliveryId });
       expect(await snapshotSalesData(db.pool)).toEqual(before);
       expect(await deliveryRows()).toHaveLength(1);
+    });
+
+    it("recognizes a retry whose object fields are in another order, at any level", async () => {
+      // Review R2: these retries were refused as a reused deliveryId.
+      const first = delivery([invoice("000001", { lines: [line("PA1", 10, 1250), line("PA2", 3, 999)] }), invoice("000002")]);
+      const original = await ingest(first);
+      expect(original).toMatchObject({ kind: "applied", replayed: false });
+      await apply(delivery([invoice("000001", { lines: [line("PA1", 1, 1250)] })]));
+      const before = await snapshotSalesData(db.pool);
+
+      const [invoice1, invoice2] = first.invoices;
+      const retries = [
+        { invoices: first.invoices, deliveryId: first.deliveryId },
+        { ...first, invoices: [{ ...invoice1!, customer: reversedFields(invoice1!.customer) }, invoice2] },
+        { ...first, invoices: [{ ...invoice1!, lines: invoice1!.lines.map(reversedFields) }, invoice2] },
+        reversedFields(first),
+      ];
+      for (const retry of retries) {
+        expect(await ingest(JSON.parse(JSON.stringify(retry)))).toEqual({ ...original, replayed: true });
+      }
+      expect(await snapshotSalesData(db.pool)).toEqual(before);
+      expect(await deliveryRows()).toHaveLength(2);
+    });
+
+    it("recognizes a reordered retry of a rejected delivery", async () => {
+      const rejected = delivery([invoice("000001", { sellerId: "S99" })]);
+      const original = await ingest(rejected);
+      expect(errorCodes(original)).toEqual(["SELLER_UNKNOWN /invoices/0/sellerId"]);
+      expect(await ingest(reversedFields(rejected))).toEqual({ ...original, replayed: true });
+      expect(await ingest({ invoices: rejected.invoices, deliveryId: rejected.deliveryId })).toEqual({ ...original, replayed: true });
+      expect(await deliveryRows()).toEqual([{ delivery_id: rejected.deliveryId, status: "rejected" }]);
+    });
+
+    it("still refuses reordered array items or changed nested values under a known deliveryId", async () => {
+      const first = delivery([invoice("000001", { lines: [line("PA1", 10, 1250), line("PA2", 3, 999)] }), invoice("000002")]);
+      await apply(first);
+      const before = await snapshotSalesData(db.pool);
+      const [invoice1, invoice2] = first.invoices;
+      const reused = { kind: "delivery-id-reused", deliveryId: first.deliveryId };
+      for (const changed of [
+        // Line order sets line numbers; invoice order is content too.
+        { ...first, invoices: [{ ...invoice1!, lines: [...invoice1!.lines].reverse() }, invoice2] },
+        { ...first, invoices: [invoice2, invoice1] },
+        reversedFields({ ...first, invoices: [{ ...invoice1!, customer: { ...invoice1!.customer, name: "Fictional Renamed" } }, invoice2] }),
+      ]) {
+        expect(await ingest(changed)).toEqual(reused);
+      }
+      expect(await snapshotSalesData(db.pool)).toEqual(before);
+      expect(await deliveryRows()).toHaveLength(1);
+    });
+
+    it("replays receipts recorded with the earlier field-order hash when resent in their original order", async () => {
+      const applied = delivery([invoice("000001")]);
+      const rejected = delivery([invoice("000002", { sellerId: "S99" })]);
+      const originals = [await ingest(applied), await ingest(rejected)];
+      // As stored before the change: the hash of the payload in the sender's field order.
+      for (const payload of [applied, rejected]) {
+        await db.pool.query("UPDATE feed_deliveries SET payload_sha256 = $2 WHERE delivery_id = $1", [
+          payload.deliveryId,
+          legacyPayloadHash(payload),
+        ]);
+      }
+      const before = await snapshotSalesData(db.pool);
+      expect(await ingest(applied)).toEqual({ ...originals[0], replayed: true });
+      expect(await ingest(rejected)).toEqual({ ...originals[1], replayed: true });
+      // The earlier hash cannot recognize another field order, as before; different content stays refused.
+      expect(await ingest(reversedFields(applied))).toEqual({ kind: "delivery-id-reused", deliveryId: applied.deliveryId });
+      const changed = delivery([invoice("000001", { lines: [line("PA1", 2, 1250)] })], applied.deliveryId);
+      expect(await ingest(changed)).toEqual({ kind: "delivery-id-reused", deliveryId: applied.deliveryId });
+      expect(await snapshotSalesData(db.pool)).toEqual(before);
+      expect(await deliveryRows()).toHaveLength(2);
+    });
+
+    it("applies simultaneous reordered copies of one delivery exactly once", async () => {
+      const payload = delivery([invoice("000001"), invoice("000002")]);
+      const outcomes = await whileFeedLocked(() => [
+        ingest(payload),
+        ingest(reversedFields(payload)),
+        ingest({ invoices: payload.invoices, deliveryId: payload.deliveryId }),
+      ]);
+      expect(outcomes.map((outcome) => outcome.kind)).toEqual(["applied", "applied", "applied"]);
+      expect(outcomes.filter((outcome) => "replayed" in outcome && !outcome.replayed)).toHaveLength(1);
+      expect(await deliveryRows()).toHaveLength(1);
+      const lines = await db.pool.query<{ count: number }>("SELECT count(*)::int AS count FROM invoice_lines");
+      expect(lines.rows[0]!.count).toBe(2);
     });
 
     it("applies simultaneous copies of one delivery exactly once", async () => {

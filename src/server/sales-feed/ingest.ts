@@ -63,17 +63,33 @@ export interface IngestOptions {
   reference?: FeedReference;
 }
 
-/**
- * Identifies the content sent under a `deliveryId`. The parsed payload is re-serialized, so
- * whitespace does not matter but key order and values do.
- */
-export function payloadHash(input: unknown): string {
-  return createHash("sha256").update(JSON.stringify(input)).digest("hex");
-}
-
 type JsonRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
+
+/** Rebuilds every object with its keys sorted; arrays keep their order. */
+function sortKeys(_key: string, value: unknown): unknown {
+  return isRecord(value) ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, value[key]])) : value;
+}
+
+/**
+ * Identifies the content sent under a `deliveryId`. The parsed payload is re-serialized with the
+ * keys of every object sorted, so neither whitespace nor object field order matters; array order
+ * and values do.
+ */
+export function payloadHash(input: unknown): string {
+  return sha256(JSON.stringify(input, sortKeys));
+}
+
+/**
+ * The hash recorded before object field order was ignored: the payload re-serialized in the
+ * sender's field order. Receipts stored with it still replay when resent in that original order.
+ */
+export function legacyPayloadHash(input: unknown): string {
+  return sha256(JSON.stringify(input));
+}
 
 /** Customer and product IDs the payload mentions, read leniently before validation. */
 function referencedIds(input: unknown): { customerIds: string[]; productIds: string[] } {
@@ -155,7 +171,8 @@ export async function ingestDelivery(pool: pg.Pool, input: unknown, options: Ing
       const row = rows[0];
       if (row) {
         await client.query("COMMIT");
-        return row.payload_sha256 === hash ? replay(deliveryId, row) : { kind: "delivery-id-reused", deliveryId };
+        const sameContent = row.payload_sha256 === hash || row.payload_sha256 === legacyPayloadHash(input);
+        return sameContent ? replay(deliveryId, row) : { kind: "delivery-id-reused", deliveryId };
       }
     }
 

@@ -129,6 +129,11 @@ describe.skipIf(!hasDatabase)("sales-feed endpoint with Postgres", () => {
     const again = await send(post(JSON.stringify(payload, null, 2)), { pool: () => db.pool, log });
     expect(again).toMatchObject({ status: 200, body: first.body });
     expect(again.headers.get("idempotent-replayed")).toBe("true");
+    // Another top-level field order is the same content (review R2).
+    const reordered = JSON.stringify({ invoices: payload.invoices, deliveryId: payload.deliveryId });
+    const third = await send(post(reordered), { pool: () => db.pool, log });
+    expect(third).toMatchObject({ status: 200, body: first.body });
+    expect(third.headers.get("idempotent-replayed")).toBe("true");
     // Diagnostics only: no customer, product or invoice values.
     expect(events.join("\n")).not.toMatch(/Fictional|C0001|PA1|000001/);
   });
