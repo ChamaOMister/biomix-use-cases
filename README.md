@@ -88,7 +88,7 @@ One row is an invoice product line. Count distinct invoices, not rows. Sales are
 
 Only project source, configuration, technical documentation and fictional test values belong in this repository. Do not publish personal details, credentials, source exports, real customer/seller identities, tax IDs or unreviewed uploads. No generated dataset is included: `npm run generate:data` writes it to the Git-ignored `data/generated/`, and the database lives in the dev container's volume. See [data handling](data/README.md).
 
-Project 2 will be an independently runnable sales investigation copilot. Project 3 will be an independently runnable n8n follow-up agent with human-approved demo tasks. Both are deferred until Project 1 is complete. No live WhatsApp sending, ERP integration, application authentication system, production hosting, or production readiness is included. Cloud development uses GitHub Codespaces.
+Project 2 will be an independently runnable sales investigation copilot. Project 3 will be an independently runnable n8n follow-up agent with human-approved demo tasks. Each will be built in its own repository, not in this one. No live WhatsApp sending, ERP integration, application authentication system, production hosting, or production readiness is included. Cloud development uses GitHub Codespaces.
 
 Known limits of Project 1:
 
