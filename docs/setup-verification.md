@@ -162,7 +162,9 @@ Implemented while milestones 4 and 5 were awaiting review, at the maintainer's r
 | Mutation spot-check | Removing the script's change listener: the browser-filter test failed. Leaving the pending delivery out of the snapshot: 3 tests failed. Restored |
 | `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, 462 tests in 20 files, production build |
 
-Not run: a fresh Codespace, hosted CI (including the artifact upload and the tag-triggered release job), the published release download link, and reviewer feedback. These remain the open items of milestone 6.
+**Hosted CI, 2026-09-29.** Branch `milestones-3-6` (commit `9fe741e`) pushed to GitHub. "Foundation checks" run 36596471395 succeeded: `npm ci`, `npm run db:migrate` against the Postgres 17 service, `npm run check` (lint, typecheck, the full behavior suite with the database tests, build), `npm run snapshot:build`, and the `report-snapshot` artifact upload (209,551 bytes compressed, kept until 2026-10-29). The `release-snapshot` job was skipped, as intended for a branch push. The run's logs were not read, so the hosted test count is not recorded here.
+
+Not run: a fresh Codespace, the tag-triggered release job and the published download link (no tag has been pushed), and reviewer feedback. These remain the open items of milestone 6.
 
 ## Codespaces workflow update, 2026-09-27
 
