@@ -62,6 +62,8 @@ From the project terminal, run `npm run dev` if the app is not already running. 
 
 Also verify the new sheet picker with a tiny fictional workbook containing the valid `Sales` sheet and an unrelated `Other` sheet. The upload should show one button for each sheet and no sheet-name text field. Click **Sales** and confirm the same three-line totals shown above. This check passed in the 2026-09-29 automated browser run above. Claude generated `qa-multi-sheet.xlsx` for it in `data/private/qa/` (a `Sales` sheet identical to `qa-valid.xlsx` plus an `Other` sheet with one fictional note). The app's own import code rejects it with `SHEET_SELECTION_AMBIGUOUS`, lists `Sales` and `Other`, and accepts the three `Sales` lines once `Sales` is selected.
 
+**Stored report and snapshot (milestone 6).** Follow [the demo](demo.md). Confirm that the rejected delivery changes nothing and the corrected one is applied. Then open `data/generated/snapshot/biomix-report-snapshot.html` from disk, with the network off if you like: its totals should match the app's for the same filters. A 23-assertion automated browser run of this flow passed on 2026-09-29 ([setup verification](setup-verification.md), milestone 6).
+
 Record pass/fail for each step. If something differs, report the step, expected result, and actual result; a screenshot of these fictional test results can help.
 
 ## Technical checks you do not need to perform manually

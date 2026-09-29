@@ -5,6 +5,8 @@ import { validateDelivery, type InvoicePayload } from "@/domain/sales-feed/contr
 import { SELLERS } from "@/domain/sales-feed/reference-data";
 import type { SalesLine } from "@/domain/sales-import/types";
 import { buildSalesReport, type ReportFilters } from "@/domain/sales-report/report";
+import { buildSnapshotData } from "@/snapshot/build";
+import { expandSnapshotLines } from "@/snapshot/data";
 import { generateSyntheticFeed, replayDeliveries } from "@/synthetic-data/generate";
 import { buildStoredCollectionsReport } from "../collections/stored-collections";
 import { createTestDatabase, hasDatabase, type TestDatabase } from "../db/testing";
@@ -59,6 +61,8 @@ function pureFilters({ sellerId, ...rest }: StoredReportFilters): ReportFilters 
 describe.skipIf(!hasDatabase)("stored reports against the pure report modules", () => {
   let db: TestDatabase;
   let lines: SalesLine[];
+  /** The lines the downloadable snapshot embeds, built from the same feed. */
+  let snapshotLines: SalesLine[];
   let summary: ReturnType<typeof generateSyntheticFeed>["summary"];
 
   beforeAll(async () => {
@@ -72,6 +76,7 @@ describe.skipIf(!hasDatabase)("stored reports against the pure report modules", 
       if (outcome.kind !== "applied") throw new Error(`generated delivery was not applied: ${outcome.kind}`);
     }
     lines = toSalesLines(replayDeliveries(deliveries).values());
+    snapshotLines = expandSnapshotLines(buildSnapshotData({ seed: feed.seed, deliveries: feed.deliveries, pendingDelivery: feed.pendingDelivery }));
   }, 120_000);
 
   afterAll(async () => {
@@ -136,6 +141,11 @@ describe.skipIf(!hasDatabase)("stored reports against the pure report modules", 
       expect(stored.ok && sales.ok && stored.report.totals.scheduledCents).toBe(sales.ok && sales.report.totals.salesCents);
       expect(stored.ok && sales.ok && stored.report.totals.invoiceCount).toBe(sales.ok && sales.report.totals.invoiceCount);
     }
+  });
+
+  it.each(cases)("the report snapshot's data gives the stored reports: %s", async (_name, filters) => {
+    expect(buildSalesReport(snapshotLines, pureFilters(filters()))).toEqual(await buildStoredSalesReport(db.pool, filters()));
+    expect(buildCollectionsReport(snapshotLines, pureFilters(filters()))).toEqual(await buildStoredCollectionsReport(db.pool, filters()));
   });
 
   it("stores every invoice's installments summing to its lines, due on its schedule's offsets", async () => {

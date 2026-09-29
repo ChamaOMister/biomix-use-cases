@@ -149,6 +149,21 @@ Implemented while milestone 4 was still awaiting review, at the maintainer's req
 
 Not run: interactive browser use (the page was checked through its HTML), a fresh Codespace, hosted CI, and the backfill on a database that actually holds milestone 4 invoices (only in the test schema).
 
+## Milestone 6 (verification and packaging), 2026-09-29
+
+Implemented while milestones 4 and 5 were awaiting review, at the maintainer's request. All three are to be reviewed together. Same Codespace, Postgres 17 and Node 24.21.0.
+
+| Check | Result |
+| --- | --- |
+| `npm install --save-dev --save-exact esbuild@0.28.2` | Lockfile updated. npm skipped esbuild's install script; esbuild works without it, since the binary comes from its platform package. `npm audit --omit=dev` is unchanged (development dependency) |
+| Demo flow on `npm run dev` ([demo](demo.md)) | After `db:reset`: 44 closed months applied. `feed/demo/2026-09-rejected.json` → rejected, 2 errors (`LINE_AMOUNT_MISMATCH` at `/invoices/145/lines/0/lineAmountCents`, `CITY_OUTSIDE_TERRITORY` at `/invoices/2/customer/city`), nothing stored. The pending 2026-09 delivery → applied, 145 added, 1 replaced, 428 lines |
+| Manual reconciliation | For each of the 8 unit-years, the invoiced sales in `feed/summary.json`, a direct SQL sum over the dev database, the snapshot's embedded data through `buildSalesReport`, and its scheduled collections through `buildCollectionsReport` are equal to the cent (Agro 2025: R$ 15.584.715,50). Stored installments: 12,757 summing to R$ 87.963.059,70, equal to the snapshot's |
+| Browser run | A throwaway headless Chromium (Playwright 1.63.0, `chrome-headless-shell`), with its runtime libraries and fonts unpacked into a temporary session folder, not the container or the project. 23 assertions, all passing. **App:** unfiltered totals, `45 deliveries applied · 1 rejected`, both checks passing, Agro 2025 through the form with the filters in the URL, product filter note, Clear filters, no page errors. **Snapshot from `file://` in an offline context:** same totals as the app unfiltered and for Agro 2025, product note, period error, Clear filters, no request besides the file itself, no console errors or policy violations, no horizontal scroll at 390 px, totals readable with JavaScript disabled. Screenshots were checked in light and dark mode and deleted with the folder |
+| Mutation spot-check | Removing the script's change listener: the browser-filter test failed. Leaving the pending delivery out of the snapshot: 3 tests failed. Restored |
+| `npm run check` (with `DATABASE_URL`) | Exit 0: ESLint, typegen + TypeScript, 462 tests in 20 files, production build |
+
+Not run: a fresh Codespace, hosted CI (including the artifact upload and the tag-triggered release job), the published release download link, and reviewer feedback. These remain the open items of milestone 6.
+
 ## Codespaces workflow update, 2026-09-27
 
 Codespaces is now the primary documented environment. The existing devcontainer requests 2 CPUs / 8 GB RAM, waits for `npm ci` before setup completes, and opens the forwarded app port in the browser. Port visibility is checked in GitHub's Ports panel rather than relying on the removed, undocumented `portsAttributes.visibility` property. See [the cloud workflow](codespaces.md).

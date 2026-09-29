@@ -20,8 +20,9 @@ src/types/                      declarations for the ExcelJS internal used by th
 src/domain/sales-report/        filters, totals, breakdowns, reconciliation, BRL formatting
 src/domain/collections/         installment schedules (terms, cent allocation, due dates) and collections report (milestone 5)
 src/domain/sales-feed/          clean-feed JSON delivery contract, seller territories (milestone 3)
-src/synthetic-data/             seeded synthetic feed generator and answer key (milestone 3)
-scripts/                        generator, db:migrate, db:reset, setup:env, feed:send (run by Node 24's type stripping)
+src/synthetic-data/             seeded synthetic feed generator and answer key (milestone 3), demo rejected delivery (milestone 6)
+src/snapshot/                   downloadable offline report snapshot: data format, renderer, browser entry, builder (milestone 6)
+scripts/                        generator, db:migrate, db:reset, setup:env, feed:send, snapshot:build (run by Node 24's type stripping)
 db/migrations/                  versioned SQL migrations, append-only
 docs/api/                       OpenAPI description of the delivery endpoint
 data/generated/                 generator output (Git-ignored)

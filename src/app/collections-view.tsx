@@ -62,7 +62,7 @@ function Breakdown({
           <table>
             <thead>
               <tr>
-                <th>{title.replace(/^By /, "")}</th>
+                <th>{title.replace(/^By (.)/, (_, first: string) => first.toUpperCase())}</th>
                 <th className="num">{invoicesHeading}</th>
                 <th className="num">Installments</th>
                 <th className="num">Scheduled</th>

@@ -6,12 +6,14 @@
  * Output (Git-ignored under the default `data/generated/`):
  *   feed/deliveries/YYYY-MM.json   one delivery per closed month
  *   feed/pending/2026-09.json      the pending next delivery
+ *   feed/demo/2026-09-rejected.json   the pending delivery with two mistakes, for the rejection demo
  *   feed/summary.json              targets vs. actual totals, delivery figures
  *   evaluation/answer-key.json     planted scenarios, kept apart from operational data
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { rejectedDemoDelivery } from "../src/synthetic-data/demo.ts";
 import { DEFAULT_SEED, generateSyntheticFeed } from "../src/synthetic-data/generate.ts";
 
 function parseSeed(value: string | undefined): number {
@@ -44,6 +46,10 @@ for (const delivery of feed.deliveries) {
   writeJson(path.join(out, "feed", "deliveries", `${delivery.month}.json`), delivery.payload);
 }
 writeJson(path.join(out, "feed", "pending", `${feed.pendingDelivery.month}.json`), feed.pendingDelivery.payload);
+writeJson(
+  path.join(out, "feed", "demo", `${feed.pendingDelivery.month}-rejected.json`),
+  rejectedDemoDelivery(feed.pendingDelivery.payload),
+);
 writeJson(path.join(out, "feed", "summary.json"), feed.summary);
 writeJson(path.join(out, "evaluation", "answer-key.json"), feed.answerKey);
 

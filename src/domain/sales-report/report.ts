@@ -1,9 +1,12 @@
 /**
  * Invoiced-sales reporting over an accepted import. Pure and deterministic: callers pass the
  * lines of one accepted import; nothing is cached or shared between calls. Safe for the browser.
+ *
+ * Reachable from Node scripts (the report snapshot) through built-in type stripping, so relative
+ * imports keep their `.ts` extension and type-only imports use `import type`.
  */
-import { isValidCalendarDate, type CalendarDate } from "../sales-import/dates";
-import type { BusinessUnit, InvoiceGroup, SalesLine } from "../sales-import/types";
+import { isValidCalendarDate, type CalendarDate } from "../sales-import/dates.ts";
+import type { BusinessUnit, InvoiceGroup, SalesLine } from "../sales-import/types.ts";
 
 export interface ReportFilters {
   customerId?: string;

@@ -8,11 +8,14 @@
  * date; their installments may fall due after it. A product filter selects individual lines, and
  * an invoice's schedule is never recomputed from part of its lines, so with a product filter the
  * report is refused (`FILTER_SELECTS_LINES`) instead of showing a distorted schedule.
+ *
+ * Reachable from Node scripts (the report snapshot) through built-in type stripping, so relative
+ * imports keep their `.ts` extension and type-only imports use `import type`.
  */
-import type { CalendarDate } from "../sales-import/dates";
-import type { BusinessUnit, PaymentSchedule, SalesLine } from "../sales-import/types";
-import { normalizeReportFilters, type ReportFilters } from "../sales-report/report";
-import { scheduleInstallments } from "./schedule";
+import type { CalendarDate } from "../sales-import/dates.ts";
+import type { BusinessUnit, PaymentSchedule, SalesLine } from "../sales-import/types.ts";
+import { normalizeReportFilters, type ReportFilters } from "../sales-report/report.ts";
+import { scheduleInstallments } from "./schedule.ts";
 
 export interface CollectionsTotals {
   invoiceCount: number;

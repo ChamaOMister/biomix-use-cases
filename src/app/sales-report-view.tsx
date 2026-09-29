@@ -41,7 +41,7 @@ function Breakdown({ title, rows, label }: { title: string; rows: ReportRow[]; l
       ) : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>{title.replace(/^By /, "")}</th><th className="num">Invoices</th><th className="num">Lines</th><th className="num">Invoiced sales</th></tr></thead>
+            <thead><tr><th>{title.replace(/^By (.)/, (_, first: string) => first.toUpperCase())}</th><th className="num">Invoices</th><th className="num">Lines</th><th className="num">Invoiced sales</th></tr></thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.key}>

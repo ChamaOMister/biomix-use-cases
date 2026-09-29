@@ -15,6 +15,7 @@ Node 24 runs the TypeScript script directly (built-in type stripping); no TypeSc
 | --- | --- |
 | `feed/deliveries/YYYY-MM.json` | 44 deliveries, one per closed month from 2023-01 to 2026-08, in the [delivery contract](sales-feed-contract.md) |
 | `feed/pending/2026-09.json` | 1–25 September 2026: the pending next delivery, for sending live in a demo |
+| `feed/demo/2026-09-rejected.json` | The pending delivery with two planted mistakes and its own delivery ID, rejected whole in [the demo](demo.md) |
 | `feed/summary.json` | Targets vs. actual annual totals, counts, per-delivery figures (all recomputable from the deliveries) |
 | `evaluation/answer-key.json` | Planted scenarios, for evaluation only |
 

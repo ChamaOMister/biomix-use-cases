@@ -6,7 +6,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Sea
   const filters = filtersFromSearchParams(await searchParams);
   return (
     <main>
-      <header><Link className="brand" href="/">biomix<span> / workbench</span></Link><span className="status">Project 1 · Milestone 5</span></header>
+      <header><Link className="brand" href="/">biomix<span> / workbench</span></Link><span className="status">Project 1 · Milestone 6</span></header>
       <section className="intro compact" aria-labelledby="title">
         <p className="eyebrow">SALES WORKBENCH</p>
         <h1 id="title">Trust the numbers.<br /><span>Understand the business.</span></h1>

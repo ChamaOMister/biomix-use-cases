@@ -4,6 +4,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { rejectedDemoDelivery } from "./demo";
 import { generateSyntheticFeed } from "./generate";
 
 const script = path.join(process.cwd(), "scripts/generate-synthetic-data.ts");
@@ -16,7 +17,7 @@ function run(args: string[], env: Record<string, string> = {}) {
 }
 
 describe("generate:data script", () => {
-  it("writes deliveries, the pending delivery, a summary and a separate answer key, whatever the time zone", () => {
+  it("writes deliveries, the pending and demo deliveries, a summary and a separate answer key, whatever the time zone", () => {
     const result = run(["--seed", "11", "--out", out], { TZ: "Pacific/Kiritimati" });
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
@@ -28,9 +29,10 @@ describe("generate:data script", () => {
     expect(written).toEqual(expected.deliveries.map((delivery) => `${delivery.month}.json`));
     for (const delivery of expected.deliveries) expect(read("feed", "deliveries", `${delivery.month}.json`)).toEqual(delivery.payload);
     expect(read("feed", "pending", "2026-09.json")).toEqual(expected.pendingDelivery.payload);
+    expect(read("feed", "demo", "2026-09-rejected.json")).toEqual(rejectedDemoDelivery(expected.pendingDelivery.payload));
     expect(read("feed", "summary.json")).toEqual(expected.summary);
     expect(read("evaluation", "answer-key.json")).toEqual(expected.answerKey);
-    expect(readdirSync(path.join(out, "feed")).sort()).toEqual(["deliveries", "pending", "summary.json"]);
+    expect(readdirSync(path.join(out, "feed")).sort()).toEqual(["deliveries", "demo", "pending", "summary.json"]);
   }, 30_000);
 
   it("rejects a seed outside the 32-bit range", () => {

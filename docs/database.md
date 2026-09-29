@@ -24,7 +24,7 @@ npm run feed:send -- data/generated/feed/deliveries         # in another: 44 clo
 npm run feed:send -- data/generated/feed/pending/2026-09.json
 ```
 
-Open the app: the report shows the stored invoices, with filters in the URL. Sending the same files again returns their original results (`already received`). If the generator changed since the last send, the regenerated files carry the same delivery IDs with different content and are refused with `409 DELIVERY_ID_REUSED`. Run `npm run db:reset -- --yes` first.
+[The demo](demo.md) adds a rejected delivery before the pending one. Open the app: the report shows the stored invoices, with filters in the URL. Sending the same files again returns their original results (`already received`). If the generator changed since the last send, the regenerated files carry the same delivery IDs with different content and are refused with `409 DELIVERY_ID_REUSED`. Run `npm run db:reset -- --yes` first.
 
 ## Tables
 
