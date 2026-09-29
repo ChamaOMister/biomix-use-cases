@@ -27,7 +27,9 @@ The same seed and code build the same bytes. Like all generated output, the file
 
 CI builds the snapshot on every push, after `npm run check` passes, and keeps it with the run as the `report-snapshot` artifact for 30 days. When a version tag is pushed, for example `v1.0.0`, the `release-snapshot` job attaches the file to that tag's GitHub Release. The download link above then serves it (`.github/workflows/ci.yml`). Creating a tag is the maintainer's decision. Never move an existing tag: publish a new version instead.
 
-v1.0.0 was published on 2026-09-29 from `af486a5`. Its asset's SHA-256 is `b7409bd341c147087f4d2b535d3eb3ba4a36b9fcf613a5eb1d868f4c23c5514f` (942,242 bytes). The file served by the download link is byte-identical to the CI build artifact and to a local rebuild. For the checks, see [setup verification](setup-verification.md#release-v100-2026-09-29).
+v1.0.0 was published on 2026-09-29 from `af486a5`. Its asset's SHA-256 is `b7409bd341c147087f4d2b535d3eb3ba4a36b9fcf613a5eb1d868f4c23c5514f` (942,242 bytes). The file served by the download link is byte-identical to the CI build artifact and to a local rebuild. For the checks, see [setup verification](setup-verification.md#release-v100-2026-09-29) and the [release audit](reviews/project-1-release-review.md).
+
+Known issue, not blocking: at mobile width, the due-month labels wrap onto two lines ([follow-ups](milestones.md#project-1-status-2026-09-29)).
 
 ## Tests
 
