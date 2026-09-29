@@ -30,10 +30,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .totals dt { font-size: 12px; color: var(--muted); }
 .totals dd { margin: 6px 0 0; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+/* Grid children may shrink below their tables' width, so a wide table scrolls inside .table-wrap, not the page. */
+.breakdowns > * { min-width: 0; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 th { font-size: 12px; color: var(--muted); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 footer { margin-top: 40px; padding: 24px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.6; }
-@media (max-width: 700px) { main { padding: 0 16px; } .panel { padding: 18px; } .breakdowns { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { main { padding: 0 16px; } .panel { padding: 18px; } .breakdowns { grid-template-columns: minmax(0, 1fr); } }
