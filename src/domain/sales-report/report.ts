@@ -13,6 +13,8 @@ export interface ReportFilters {
   productId?: string;
   sellerName?: string;
   businessUnit?: BusinessUnit;
+  /** The customer's state (UF), an invoice attribute. */
+  customerState?: string;
   /** Inclusive billing-date bounds (ISO). */
   from?: CalendarDate;
   to?: CalendarDate;
@@ -151,6 +153,7 @@ export function buildSalesReport(lines: readonly SalesLine[], rawFilters: Report
     (filters.productId === undefined || line.productId === filters.productId) &&
     (filters.sellerName === undefined || line.sellerName === filters.sellerName) &&
     (filters.businessUnit === undefined || line.businessUnit === filters.businessUnit) &&
+    (filters.customerState === undefined || line.customerState === filters.customerState) &&
     (filters.from === undefined || line.billingDate >= filters.from) &&
     (filters.to === undefined || line.billingDate <= filters.to);
 

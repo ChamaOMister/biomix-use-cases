@@ -5,21 +5,40 @@ import { filtersFromSearchParams, StoredSalesReport, type SearchParams } from ".
 export default async function Home({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const filters = filtersFromSearchParams(await searchParams);
   return (
-    <main>
-      <header><Link className="brand" href="/">biomix<span> / workbench</span></Link><span className="status">Project 1 · Milestone 6</span></header>
-      <section className="intro compact" aria-labelledby="title">
-        <p className="eyebrow">SALES WORKBENCH</p>
-        <h1 id="title">Trust the numbers.<br /><span>Understand the business.</span></h1>
-        <p className="description">Invoiced sales and scheduled collections from the clean sales feed, stored in Postgres. Each delivery is checked against the contract and applied whole or not at all.</p>
-        <p className="notice"><strong>Synthetic data.</strong> The reports below read the invoices stored from feed deliveries: invoiced sales, then the scheduled collections their payment schedules imply (contractual installments, not payments received). The XLSX check further down is separate: it validates an uploaded export and stores nothing.</p>
-      </section>
-      <StoredSalesReport filters={filters} />
-      <section className="intro compact" aria-labelledby="xlsx-title">
-        <h2 id="xlsx-title">Check an XLSX export (not stored)</h2>
-        <p className="description">The workbook is validated on the server and discarded. An accepted dataset lives only in this browser tab and disappears when you reload.</p>
-      </section>
-      <SalesWorkbench />
-      <footer><span>Portfolio demo · Agro + Home &amp; Garden · invoiced sales and scheduled collections</span><span>Amounts are exact integer cents</span></footer>
-    </main>
+    <div className="layout">
+      <aside className="sidebar">
+        <Link className="brand" href="/"><span className="brand-mark" aria-hidden="true">✳</span> biomix <span className="brand-sub">insights</span></Link>
+        <div className="side-label">Workspace</div>
+        <nav className="nav" aria-label="Sections">
+          <a href="#overview"><span className="ico" aria-hidden="true">▦</span> Overview</a>
+          <a href="#distribution"><span className="ico" aria-hidden="true">◫</span> Distribution</a>
+          <a href="#customers"><span className="ico" aria-hidden="true">♙</span> Customers</a>
+          <a href="#collections"><span className="ico" aria-hidden="true">◷</span> Collections</a>
+          <a href="#xlsx-title"><span className="ico" aria-hidden="true">⇪</span> Check an XLSX</a>
+        </nav>
+        <div className="side-note">
+          <b>Synthetic data</b>
+          Fictional customers, sellers and products from the clean sales feed, stored in Postgres. Amounts are exact integer cents.
+        </div>
+      </aside>
+      <main>
+        <div className="topbar">
+          <div className="crumb">Sales &nbsp;/&nbsp; <b>Dashboard</b></div>
+          <span className="date-tag">Project 1 · invoiced sales &amp; scheduled collections</span>
+        </div>
+        <StoredSalesReport filters={filters} />
+        <section className="xlsx" aria-labelledby="xlsx-title">
+          <div className="section-title">
+            <h2 id="xlsx-title">Check an XLSX export (not stored)</h2>
+            <p>The workbook is validated on the server and discarded. An accepted dataset lives only in this browser tab and disappears when you reload.</p>
+          </div>
+          <SalesWorkbench />
+        </section>
+        <footer>
+          <span>Portfolio demo · Agro + Home &amp; Garden · invoiced sales and scheduled collections · synthetic data</span>
+          <span>Amounts are exact integer cents; chart bars are drawn to scale</span>
+        </footer>
+      </main>
+    </div>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Biomix | ERP Sales Workbench",
+  title: "Sales dashboard | Biomix",
   description: "A portfolio project for trustworthy invoiced-sales reporting.",
 };
 

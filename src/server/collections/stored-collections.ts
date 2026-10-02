@@ -39,13 +39,15 @@ interface AggregateRow {
 // keeps every selected invoice, so the grand total counts them all even if one had no installments.
 const COLLECTIONS_SQL = `
   WITH selected AS MATERIALIZED (
-    SELECT invoice_number, payment_schedule
-    FROM invoices
-    WHERE ($1::text IS NULL OR customer_id = $1)
-      AND ($2::text IS NULL OR seller_id = $2)
-      AND ($3::text IS NULL OR business_unit = $3)
-      AND ($4::date IS NULL OR billing_date >= $4)
-      AND ($5::date IS NULL OR billing_date <= $5)
+    SELECT i.invoice_number, i.payment_schedule
+    FROM invoices i
+    JOIN customers c ON c.customer_id = i.customer_id
+    WHERE ($1::text IS NULL OR i.customer_id = $1)
+      AND ($2::text IS NULL OR i.seller_id = $2)
+      AND ($3::text IS NULL OR i.business_unit = $3)
+      AND ($4::text IS NULL OR c.state = $4)
+      AND ($5::date IS NULL OR i.billing_date >= $5)
+      AND ($6::date IS NULL OR i.billing_date <= $6)
   )
   SELECT GROUPING(to_char(i.due_date, 'YYYY-MM'), s.payment_schedule) AS level,
          to_char(i.due_date, 'YYYY-MM') AS month,
@@ -86,6 +88,7 @@ export async function buildStoredCollectionsReport(
     filters.customerId ?? null,
     filters.sellerId ?? null,
     filters.businessUnit ?? null,
+    filters.state ?? null,
     filters.from ?? null,
     filters.to ?? null,
   ]);

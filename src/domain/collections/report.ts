@@ -4,7 +4,7 @@
  * lines and filters as `buildSalesReport`.
  *
  * Installments belong to whole invoices, so filters select whole invoices by invoice attributes:
- * customer, seller, business unit and billing period. The period selects invoices by billing
+ * customer, seller, business unit, customer state and billing period. The period selects invoices by billing
  * date; their installments may fall due after it. A product filter selects individual lines, and
  * an invoice's schedule is never recomputed from part of its lines, so with a product filter the
  * report is refused (`FILTER_SELECTS_LINES`) instead of showing a distorted schedule.
@@ -67,6 +67,7 @@ interface InvoiceOfLines {
   invoiceNumber: string;
   billingDate: CalendarDate;
   customerId: string;
+  customerState: string | null;
   sellerName: string;
   businessUnit: BusinessUnit;
   paymentSchedule: PaymentSchedule;
@@ -79,11 +80,20 @@ export function groupInvoices(lines: readonly SalesLine[]): InvoiceOfLines[] {
   for (const line of lines) {
     const invoice = invoices.get(line.invoiceNumber);
     if (!invoice) {
-      const { invoiceNumber, billingDate, customerId, sellerName, businessUnit, paymentSchedule } = line;
-      invoices.set(invoiceNumber, { invoiceNumber, billingDate, customerId, sellerName, businessUnit, paymentSchedule, lines: [line] });
+      const { invoiceNumber, billingDate, customerId, customerState, sellerName, businessUnit, paymentSchedule } = line;
+      invoices.set(invoiceNumber, {
+        invoiceNumber,
+        billingDate,
+        customerId,
+        customerState,
+        sellerName,
+        businessUnit,
+        paymentSchedule,
+        lines: [line],
+      });
       continue;
     }
-    for (const field of ["billingDate", "customerId", "sellerName", "businessUnit", "paymentSchedule"] as const) {
+    for (const field of ["billingDate", "customerId", "customerState", "sellerName", "businessUnit", "paymentSchedule"] as const) {
       if (invoice[field] !== line[field]) throw new Error(`Invoice lines disagree on ${field}; accepted data never does`);
     }
     invoice.lines.push(line);
@@ -145,6 +155,7 @@ export function buildCollectionsReport(lines: readonly SalesLine[], rawFilters: 
     (filters.customerId === undefined || invoice.customerId === filters.customerId) &&
     (filters.sellerName === undefined || invoice.sellerName === filters.sellerName) &&
     (filters.businessUnit === undefined || invoice.businessUnit === filters.businessUnit) &&
+    (filters.customerState === undefined || invoice.customerState === filters.customerState) &&
     (filters.from === undefined || invoice.billingDate >= filters.from) &&
     (filters.to === undefined || invoice.billingDate <= filters.to);
 

@@ -24,11 +24,18 @@ export function SalesReportView({ report }: { report: SalesReport }) {
       <p className={report.reconciled ? "check ok" : "check bad"}>
         {report.reconciled ? "✓ Month and business-unit breakdowns each sum exactly to the totals above." : "✗ Breakdowns do not sum to the totals."}
       </p>
-      <div className="breakdowns">
-        <Breakdown title="By billing month" rows={report.byMonth} label={(key) => key} />
-        <Breakdown title="By business unit" rows={report.byBusinessUnit} label={(key) => BUSINESS_UNIT_NAMES[key as BusinessUnit]} />
-      </div>
+      <SalesBreakdowns report={report} />
     </>
+  );
+}
+
+/** The month and business-unit breakdown tables alone. */
+export function SalesBreakdowns({ report }: { report: SalesReport }) {
+  return (
+    <div className="breakdowns">
+      <Breakdown title="By billing month" rows={report.byMonth} label={(key) => key} />
+      <Breakdown title="By business unit" rows={report.byBusinessUnit} label={(key) => BUSINESS_UNIT_NAMES[key as BusinessUnit]} />
+    </div>
   );
 }
 

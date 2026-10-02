@@ -96,6 +96,12 @@ describe("scheduled-collections report", () => {
     expect(agro.reconciled).toBe(true);
   });
 
+  it("selects whole invoices by the customer's state", () => {
+    const located = dataset.map((line) => ({ ...line, customerState: line.customerId === "C-2" ? "SP" : "MG" }));
+    expect(report(located, { customerState: "SP" }).totals).toEqual({ invoiceCount: 1, installmentCount: 1, scheduledCents: 700 });
+    expect(report(located, { customerState: "MG", sellerName: "Vendedor Demo" }).totals.invoiceCount).toBe(0);
+  });
+
   it("selects invoices by billing date; their installments may fall due after the period", () => {
     const december = report(dataset, { from: "2025-12-01", to: "2025-12-31" });
     expect(december.totals).toEqual({ invoiceCount: 1, installmentCount: 4, scheduledCents: 4501 });

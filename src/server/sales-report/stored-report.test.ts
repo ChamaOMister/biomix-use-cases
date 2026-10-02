@@ -4,13 +4,14 @@ import { PAYMENT_SCHEDULE_OFFSETS } from "@/domain/collections/schedule";
 import { validateDelivery, type InvoicePayload } from "@/domain/sales-feed/contract";
 import { SELLERS } from "@/domain/sales-feed/reference-data";
 import type { SalesLine } from "@/domain/sales-import/types";
-import { buildSalesReport, type ReportFilters } from "@/domain/sales-report/report";
+import { buildSalesReport, normalizeReportFilters, type ReportFilters } from "@/domain/sales-report/report";
 import { buildSnapshotData } from "@/snapshot/build";
 import { expandSnapshotLines } from "@/snapshot/data";
 import { generateSyntheticFeed, replayDeliveries } from "@/synthetic-data/generate";
 import { buildStoredCollectionsReport } from "../collections/stored-collections";
 import { createTestDatabase, hasDatabase, type TestDatabase } from "../db/testing";
 import { ingestDelivery } from "../sales-feed/ingest";
+import { buildStoredRankings, type RankingRow } from "./stored-rankings";
 import { buildStoredSalesReport, storedFilterOptions, type StoredReportFilters } from "./stored-report";
 
 const SELLER_NAME = new Map(SELLERS.map((seller) => [seller.sellerId, seller.name]));
@@ -54,8 +55,12 @@ function toSalesLines(invoices: Iterable<InvoicePayload>): SalesLine[] {
   return lines;
 }
 
-function pureFilters({ sellerId, ...rest }: StoredReportFilters): ReportFilters {
-  return { ...rest, ...(sellerId !== undefined ? { sellerName: SELLER_NAME.get(sellerId)! } : {}) };
+function pureFilters({ sellerId, state, ...rest }: StoredReportFilters): ReportFilters {
+  return {
+    ...rest,
+    ...(sellerId !== undefined ? { sellerName: SELLER_NAME.get(sellerId)! } : {}),
+    ...(state !== undefined ? { customerState: state } : {}),
+  };
 }
 
 describe.skipIf(!hasDatabase)("stored reports against the pure report modules", () => {
@@ -120,15 +125,23 @@ describe.skipIf(!hasDatabase)("stored reports against the pure report modules", 
     ["a period without sales", () => ({ from: "2020-01-01", to: "2020-12-31" })],
     ["empty strings as no filter", () => ({ customerId: "", from: "" }) as StoredReportFilters],
   ];
+  // The snapshot does not embed customer states, so these cases are compared with the pure modules only.
+  const stateCases: [string, () => StoredReportFilters][] = [
+    ["one state", () => ({ state: "MG" })],
+    ["a seller within a state", () => ({ sellerId: "S03", state: "RJ" })],
+    ["product, seller and state", () => ({ productId: top.productId, sellerId: "S04", state: "MG" })],
+    ["a state outside the seller's territory", () => ({ sellerId: "S01", state: "ES" })],
+  ];
+  const allCases = [...cases, ...stateCases];
 
-  it.each(cases)("matches the pure report: %s", async (_name, filters) => {
+  it.each(allCases)("matches the pure report: %s", async (_name, filters) => {
     const stored = await buildStoredSalesReport(db.pool, filters());
     const pure = buildSalesReport(lines, pureFilters(filters()));
     expect(stored).toEqual(pure);
     expect(stored.ok && stored.report.reconciled).toBe(true);
   });
 
-  it.each(cases)("scheduled collections match the pure module: %s", async (_name, filters) => {
+  it.each(allCases)("scheduled collections match the pure module: %s", async (_name, filters) => {
     const stored = await buildStoredCollectionsReport(db.pool, filters());
     const pure = buildCollectionsReport(lines, pureFilters(filters()));
     expect(stored).toEqual(pure);
@@ -146,6 +159,49 @@ describe.skipIf(!hasDatabase)("stored reports against the pure report modules", 
   it.each(cases)("the report snapshot's data gives the stored reports: %s", async (_name, filters) => {
     expect(buildSalesReport(snapshotLines, pureFilters(filters()))).toEqual(await buildStoredSalesReport(db.pool, filters()));
     expect(buildCollectionsReport(snapshotLines, pureFilters(filters()))).toEqual(await buildStoredCollectionsReport(db.pool, filters()));
+  });
+
+  it.each(allCases)("rankings match an independent count of the lines: %s", async (_name, filters) => {
+    const stored = await buildStoredRankings(db.pool, filters());
+    const sales = await buildStoredSalesReport(db.pool, filters());
+    if (!stored.ok || !sales.ok) throw new Error("expected both reports");
+    const normalized = normalizeReportFilters(pureFilters(filters()));
+    if (!normalized.ok) throw new Error("expected valid filters");
+    const pure = normalized.filters;
+    const selected = lines.filter(
+      (line) =>
+        (pure.customerId === undefined || line.customerId === pure.customerId) &&
+        (pure.productId === undefined || line.productId === pure.productId) &&
+        (pure.sellerName === undefined || line.sellerName === pure.sellerName) &&
+        (pure.businessUnit === undefined || line.businessUnit === pure.businessUnit) &&
+        (pure.customerState === undefined || line.customerState === pure.customerState) &&
+        (pure.from === undefined || line.billingDate >= pure.from) &&
+        (pure.to === undefined || line.billingDate <= pure.to),
+    );
+    const rank = (key: (line: SalesLine) => string) => {
+      const groups = new Map<string, { label: string; lineCount: number; invoices: Set<string>; salesCents: number }>();
+      for (const line of selected) {
+        const group = groups.get(key(line)) ?? { label: key(line), lineCount: 0, invoices: new Set<string>(), salesCents: 0 };
+        groups.set(key(line), group);
+        group.lineCount += 1;
+        group.invoices.add(line.invoiceNumber);
+        group.salesCents += line.lineAmountCents;
+      }
+      return [...groups.values()]
+        .map(({ label, lineCount, invoices, salesCents }) => ({ label, lineCount, invoiceCount: invoices.size, salesCents }))
+        .sort((a, b) => b.salesCents - a.salesCents || a.label.localeCompare(b.label, "pt-BR"));
+    };
+    const shape = (rows: RankingRow[]) => rows.map(({ label, lineCount, invoiceCount, salesCents }) => ({ label, lineCount, invoiceCount, salesCents }));
+    expect(shape(stored.rankings.byProduct)).toEqual(rank((line) => line.productName));
+    expect(shape(stored.rankings.byCustomer)).toEqual(rank((line) => line.customerName));
+    expect(shape(stored.rankings.bySeller)).toEqual(rank((line) => line.sellerName));
+    expect(shape(stored.rankings.byState)).toEqual(rank((line) => line.customerState!));
+    // Every ranking's sales and lines add up to the report's totals.
+    for (const list of [stored.rankings.byProduct, stored.rankings.byCustomer, stored.rankings.bySeller, stored.rankings.byState]) {
+      expect(list.reduce((sum, row) => sum + row.salesCents, 0)).toBe(sales.report.totals.salesCents);
+      expect(list.reduce((sum, row) => sum + row.lineCount, 0)).toBe(sales.report.totals.lineCount);
+    }
+    expect(stored.rankings.byCustomer.every((row) => row.detail?.endsWith(`, ${selected.find((line) => line.customerId === row.key)!.customerState}`))).toBe(true);
   });
 
   it("stores every invoice's installments summing to its lines, due on its schedule's offsets", async () => {
@@ -190,6 +246,7 @@ describe.skipIf(!hasDatabase)("stored reports against the pure report modules", 
     expect(options.products).toHaveLength(new Set(lines.map((line) => line.productId)).size);
     expect(options.sellers.map((seller) => seller.id).sort()).toEqual(SELLERS.map((seller) => seller.sellerId));
     expect(options.businessUnits).toEqual(["AGRO", "HOME_GARDEN"]);
+    expect(options.states).toEqual([...new Set(lines.map((line) => line.customerState!))].sort());
     expect(options.firstDate).toBe(lines.reduce((min, line) => (line.billingDate < min ? line.billingDate : min), "9999-12-31"));
     expect(options.lastDate).toBe(lines.reduce((max, line) => (line.billingDate > max ? line.billingDate : max), "0000-01-01"));
     expect(options).toMatchObject({ appliedDeliveries: 45, rejectedDeliveries: 0 });

@@ -113,12 +113,24 @@ describe("filters", () => {
     expect(report(dataset, { from: "2024-03-16" }).totals.salesCents).toBe(700);
   });
 
+  it("filters by the customer's state", () => {
+    const located = dataset.map((line) => ({ ...line, customerState: line.customerId === "C-1" ? "MG" : "SP" }));
+    expect(report(located, { customerState: "SP" }).totals).toMatchObject({ invoiceCount: 1, salesCents: 700 });
+    expect(report(located, { customerState: "RJ" }).totals).toMatchObject({ invoiceCount: 0, salesCents: 0 });
+  });
+
   it("combines filters with AND", () => {
     expect(report(dataset, { productId: "P-2", businessUnit: "AGRO" }).totals).toMatchObject({
       lineCount: 1,
       invoiceCount: 1,
       salesCents: 2500,
     });
+    const located = dataset.map((line) => ({ ...line, customerState: line.customerId === "C-1" ? "MG" : "SP" }));
+    expect(report(located, { productId: "P-2", sellerName: "Vendedor Demo", customerState: "SP" }).totals).toMatchObject({
+      lineCount: 1,
+      salesCents: 700,
+    });
+    expect(report(located, { productId: "P-2", sellerName: "Vendedor Demo", customerState: "MG" }).totals.lineCount).toBe(0);
   });
 
   it("rejects a reversed period", () => {

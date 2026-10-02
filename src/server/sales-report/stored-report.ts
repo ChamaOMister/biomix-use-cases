@@ -27,6 +27,8 @@ export interface StoredReportFilters {
   productId?: string;
   sellerId?: string;
   businessUnit?: BusinessUnit;
+  /** The customer's state (UF). */
+  state?: string;
   /** Inclusive billing-date bounds (ISO). */
   from?: CalendarDate;
   to?: CalendarDate;
@@ -42,6 +44,31 @@ interface AggregateRow {
   commission_cents: string;
 }
 
+/**
+ * Every filter combined with AND; an unset filter is NULL and matches everything. Shared by the
+ * report and the rankings, which alias invoice lines `l`, invoices `i` and customers `c`.
+ */
+export const FILTER_SQL = `($1::text IS NULL OR i.customer_id = $1)
+    AND ($2::text IS NULL OR l.product_id = $2)
+    AND ($3::text IS NULL OR i.seller_id = $3)
+    AND ($4::text IS NULL OR i.business_unit = $4)
+    AND ($5::text IS NULL OR c.state = $5)
+    AND ($6::date IS NULL OR i.billing_date >= $6)
+    AND ($7::date IS NULL OR i.billing_date <= $7)`;
+
+/** The query parameters of `FILTER_SQL`, in order. */
+export function filterParams(filters: StoredReportFilters): (string | null)[] {
+  return [
+    filters.customerId ?? null,
+    filters.productId ?? null,
+    filters.sellerId ?? null,
+    filters.businessUnit ?? null,
+    filters.state ?? null,
+    filters.from ?? null,
+    filters.to ?? null,
+  ];
+}
+
 // GROUPING() bitmask: 3 = grand total, 1 = per month, 2 = per business unit.
 const REPORT_SQL = `
   SELECT GROUPING(to_char(i.billing_date, 'YYYY-MM'), i.business_unit) AS level,
@@ -53,12 +80,8 @@ const REPORT_SQL = `
          coalesce(sum(l.commission_amount_cents), 0)::text AS commission_cents
   FROM invoice_lines l
   JOIN invoices i ON i.invoice_number = l.invoice_number
-  WHERE ($1::text IS NULL OR i.customer_id = $1)
-    AND ($2::text IS NULL OR l.product_id = $2)
-    AND ($3::text IS NULL OR i.seller_id = $3)
-    AND ($4::text IS NULL OR i.business_unit = $4)
-    AND ($5::date IS NULL OR i.billing_date >= $5)
-    AND ($6::date IS NULL OR i.billing_date <= $6)
+  JOIN customers c ON c.customer_id = i.customer_id
+  WHERE ${FILTER_SQL}
   GROUP BY GROUPING SETS ((), (to_char(i.billing_date, 'YYYY-MM')), (i.business_unit))`;
 
 function totalsOf(row: AggregateRow): ReportTotals | null {
@@ -74,14 +97,7 @@ export async function buildStoredSalesReport(db: Queryable, rawFilters: StoredRe
   const normalized = normalizeReportFilters(rawFilters);
   if (!normalized.ok) return normalized;
   const { filters } = normalized;
-  const { rows } = await db.query<AggregateRow>(REPORT_SQL, [
-    filters.customerId ?? null,
-    filters.productId ?? null,
-    filters.sellerId ?? null,
-    filters.businessUnit ?? null,
-    filters.from ?? null,
-    filters.to ?? null,
-  ]);
+  const { rows } = await db.query<AggregateRow>(REPORT_SQL, filterParams(filters));
 
   let totals: ReportTotals | null = null;
   const byMonth: ReportRow[] = [];
@@ -119,6 +135,8 @@ export interface StoredFilterOptions {
   products: LabeledOption[];
   sellers: LabeledOption[];
   businessUnits: BusinessUnit[];
+  /** States (UF) of customers with invoices, sorted. */
+  states: string[];
   firstDate: CalendarDate | null;
   lastDate: CalendarDate | null;
   appliedDeliveries: number;
@@ -136,8 +154,15 @@ export async function storedFilterOptions(db: Queryable): Promise<StoredFilterOp
   const sellers = await labeled(
     "SELECT seller_id AS id, name AS label FROM sellers s WHERE EXISTS (SELECT 1 FROM invoices i WHERE i.seller_id = s.seller_id)",
   );
-  const invoiceFacts = await db.query<{ units: BusinessUnit[] | null; first_date: CalendarDate | null; last_date: CalendarDate | null }>(
-    "SELECT array_agg(DISTINCT business_unit) AS units, min(billing_date) AS first_date, max(billing_date) AS last_date FROM invoices",
+  const invoiceFacts = await db.query<{
+    units: BusinessUnit[] | null;
+    states: string[] | null;
+    first_date: CalendarDate | null;
+    last_date: CalendarDate | null;
+  }>(
+    `SELECT array_agg(DISTINCT i.business_unit) AS units, array_agg(DISTINCT c.state ORDER BY c.state) AS states,
+            min(i.billing_date) AS first_date, max(i.billing_date) AS last_date
+     FROM invoices i JOIN customers c ON c.customer_id = i.customer_id`,
   );
   const deliveryFacts = await db.query<{ applied: number; rejected: number }>(
     `SELECT count(*) FILTER (WHERE status = 'applied')::int AS applied,
@@ -151,6 +176,7 @@ export async function storedFilterOptions(db: Queryable): Promise<StoredFilterOp
     products,
     sellers,
     businessUnits: BUSINESS_UNIT_ORDER.filter((unit) => units.has(unit)),
+    states: facts.states ?? [],
     firstDate: facts.first_date,
     lastDate: facts.last_date,
     appliedDeliveries: deliveryFacts.rows[0]!.applied,
