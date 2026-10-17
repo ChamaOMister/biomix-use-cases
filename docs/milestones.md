@@ -32,9 +32,19 @@ Reconcile representative source totals manually, run the behavior suite, verify 
 
 **Complete.** Milestones 1–6 are implemented and review-approved: milestones 1 and 2 with browser QA accepted, milestone 3 in [its review](reviews/milestone-3-review.md), and milestones 4–6 together in [their review](reviews/milestone-4-6-review.md) (R1–R3 closed). The maintainer waived the fresh Codespace's browser steps ([setup verification](setup-verification.md#fresh-codespace-2026-09-29)). Released as [v1.0.0](https://github.com/ChamaOMister/biomix-use-cases/releases/tag/v1.0.0), and its downloaded snapshot was verified ([release verification](setup-verification.md#release-v100-2026-09-29)). Project 2 starts in a separate repository.
 
-Non-blocking follow-ups from the review, not scheduled:
+Non-blocking follow-ups from the review, both closed on 2026-10-17 (see below):
 
 - The snapshot's due-month labels wrap at mobile width (cosmetic).
 - The live page could read its reports and filter context within one consistent read transaction.
+
+## After v1.0.0: dashboard and v1.1, 2026-10-17
+
+The live page became a dashboard with a customer-state filter (`97b58ef`, 2026-10-02, pushed without review). Three changes on 2026-10-17 then prepared v1.1.0:
+
+- The page reads its reports in one read-only, repeatable-read transaction.
+- The snapshot was brought up to the dashboard, with rankings computed by a new pure module that the stored rankings are tested against.
+- Review fixes followed, notably for keyboard date entry.
+
+Both follow-ups above are closed. Claude reviewed the whole range ([v1.1 review](reviews/v1.1-review.md)); that was a self-review, not an independent approval.
 
 Deferred: Project 2 bounded-tool copilot with deterministic evaluations, reaching the database through an MCP server with fixed read-only tools; Project 3 n8n agent with approval, rejection, tool-failure, and duplicate-trigger tests and a fixed-workflow baseline. Neither should be scaffolded here.
