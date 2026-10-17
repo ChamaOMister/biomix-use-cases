@@ -152,6 +152,13 @@ describe("scheduled-collections report", () => {
     expect(() => buildCollectionsReport(conflicting, {})).toThrow(/paymentSchedule/);
   });
 
+  it("gives an invoice whose lines disagree on the customer state no state, instead of failing", () => {
+    const mixed = [makeLine({ customerState: "MG" }), makeLine({ customerState: null })];
+    expect(groupInvoices(mixed)[0]!.customerState).toBeNull();
+    expect(buildCollectionsReport(mixed, {})).toMatchObject({ ok: true, report: { totals: { invoiceCount: 1 } } });
+    expect(buildCollectionsReport(mixed, { customerState: "MG" })).toMatchObject({ ok: true, report: { totals: { invoiceCount: 0 } } });
+  });
+
   it("flags installments that do not match the invoiced sales or the breakdowns", () => {
     const { totals, byDueMonth, byPaymentSchedule } = report(dataset);
     expect(collectionsReconcile(totals, byDueMonth, byPaymentSchedule, 5301)).toBe(true);

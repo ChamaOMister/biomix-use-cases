@@ -4,11 +4,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { BUSINESS_UNIT_LABELS } from "@/domain/sales-feed/contract";
 import type { BusinessUnit } from "@/domain/sales-import/types";
-import { stateLabel } from "@/domain/sales-report/display";
+import { optionLabels, stateLabel } from "@/domain/sales-report/display";
 import { FILTER_KEYS, filtersHref, type FilterKey, type FilterValues } from "./report-filters";
-
-const UNIT_NAMES: Record<BusinessUnit, string> = { AGRO: "Agro", HOME_GARDEN: "Home & Garden" };
 
 export interface FilterBarOptions {
   customers: { id: string; label: string }[];
@@ -18,6 +17,10 @@ export interface FilterBarOptions {
   businessUnits: BusinessUnit[];
   firstDate: string | null;
   lastDate: string | null;
+}
+
+function isDateInput(target: EventTarget): target is HTMLInputElement {
+  return target instanceof HTMLInputElement && target.type === "date";
 }
 
 /** Remount it with a `key` per URL so the fields show the URL's values again. */
@@ -32,14 +35,18 @@ export function FilterBar({ filters, options }: { filters: FilterValues; options
     startTransition(() => router.push(filtersHref(values), { scroll: false }));
   }
 
-  const name = (list: { id: string; label: string }[], id: string) => list.find((item) => item.id === id)?.label ?? id;
+  // Names, never IDs, unless two choices share a name.
+  const customerLabels = optionLabels(options.customers);
+  const productLabels = optionLabels(options.products);
+  const sellerLabels = optionLabels(options.sellers);
+  const name = (labels: Map<string, string>, id: string) => labels.get(id) ?? id;
   // One removable chip per active filter, always by name.
   const chips: [FilterKey, string, string][] = [];
-  if (filters.customerId) chips.push(["customerId", "Customer", name(options.customers, filters.customerId)]);
-  if (filters.productId) chips.push(["productId", "Product", name(options.products, filters.productId)]);
-  if (filters.sellerId) chips.push(["sellerId", "Seller", name(options.sellers, filters.sellerId)]);
+  if (filters.customerId) chips.push(["customerId", "Customer", name(customerLabels, filters.customerId)]);
+  if (filters.productId) chips.push(["productId", "Product", name(productLabels, filters.productId)]);
+  if (filters.sellerId) chips.push(["sellerId", "Seller", name(sellerLabels, filters.sellerId)]);
   if (filters.state) chips.push(["state", "State", stateLabel(filters.state)]);
-  if (filters.businessUnit) chips.push(["businessUnit", "Unit", UNIT_NAMES[filters.businessUnit as BusinessUnit] ?? filters.businessUnit]);
+  if (filters.businessUnit) chips.push(["businessUnit", "Unit", BUSINESS_UNIT_LABELS[filters.businessUnit as BusinessUnit] ?? filters.businessUnit]);
   if (filters.from) chips.push(["from", "From", filters.from]);
   if (filters.to) chips.push(["to", "To", filters.to]);
 
@@ -51,7 +58,22 @@ export function FilterBar({ filters, options }: { filters: FilterValues; options
       action="/"
       aria-label="Report filters"
       aria-busy={pending}
-      onChange={(event) => apply(event.currentTarget)}
+      // Dates apply when the field is left or Enter is pressed, not on every keystroke: typing a
+      // year digit by digit passes through valid dates such as 0002-03-01, and each navigation
+      // remounts the form, which would throw the half-typed date away.
+      onChange={(event) => {
+        if (!isDateInput(event.target)) apply(event.currentTarget);
+      }}
+      onBlur={(event) => {
+        const target = event.target;
+        if (isDateInput(target) && target.value !== (filters[target.name as FilterKey] ?? "")) apply(event.currentTarget);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && isDateInput(event.target)) {
+          event.preventDefault();
+          apply(event.currentTarget);
+        }
+      }}
       onSubmit={(event) => {
         event.preventDefault();
         apply(event.currentTarget);
@@ -61,21 +83,21 @@ export function FilterBar({ filters, options }: { filters: FilterValues; options
         <label htmlFor="f-customer">Customer</label>
         <select id="f-customer" name="customerId" defaultValue={filters.customerId ?? ""}>
           <option value="">All customers</option>
-          {options.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.label}</option>)}
+          {options.customers.map((customer) => <option key={customer.id} value={customer.id}>{name(customerLabels, customer.id)}</option>)}
         </select>
       </div>
       <div className="filter wide">
         <label htmlFor="f-product">Product</label>
         <select id="f-product" name="productId" defaultValue={filters.productId ?? ""}>
           <option value="">All products</option>
-          {options.products.map((product) => <option key={product.id} value={product.id}>{product.label}</option>)}
+          {options.products.map((product) => <option key={product.id} value={product.id}>{name(productLabels, product.id)}</option>)}
         </select>
       </div>
       <div className="filter">
         <label htmlFor="f-seller">Seller</label>
         <select id="f-seller" name="sellerId" defaultValue={filters.sellerId ?? ""}>
           <option value="">All sellers</option>
-          {options.sellers.map((seller) => <option key={seller.id} value={seller.id}>{seller.label}</option>)}
+          {options.sellers.map((seller) => <option key={seller.id} value={seller.id}>{name(sellerLabels, seller.id)}</option>)}
         </select>
       </div>
       <div className="filter">
@@ -89,7 +111,7 @@ export function FilterBar({ filters, options }: { filters: FilterValues; options
         <label htmlFor="f-unit">Business unit</label>
         <select id="f-unit" name="businessUnit" defaultValue={filters.businessUnit ?? ""}>
           <option value="">All units</option>
-          {options.businessUnits.map((unit) => <option key={unit} value={unit}>{UNIT_NAMES[unit]}</option>)}
+          {options.businessUnits.map((unit) => <option key={unit} value={unit}>{BUSINESS_UNIT_LABELS[unit]}</option>)}
         </select>
       </div>
       <div className="filter date">

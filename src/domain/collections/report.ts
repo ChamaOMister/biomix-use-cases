@@ -74,7 +74,11 @@ interface InvoiceOfLines {
   lines: SalesLine[];
 }
 
-/** Groups lines into invoices once. Lines of one invoice must agree on its attributes. */
+/**
+ * Groups lines into invoices once. Lines of one invoice must agree on its attributes. The customer
+ * state is the exception: the XLSX import does not require it to agree, so an invoice whose lines
+ * disagree on it gets no state, and a state filter does not select it.
+ */
 export function groupInvoices(lines: readonly SalesLine[]): InvoiceOfLines[] {
   const invoices = new Map<string, InvoiceOfLines>();
   for (const line of lines) {
@@ -93,7 +97,8 @@ export function groupInvoices(lines: readonly SalesLine[]): InvoiceOfLines[] {
       });
       continue;
     }
-    for (const field of ["billingDate", "customerId", "customerState", "sellerName", "businessUnit", "paymentSchedule"] as const) {
+    if (invoice.customerState !== line.customerState) invoice.customerState = null;
+    for (const field of ["billingDate", "customerId", "sellerName", "businessUnit", "paymentSchedule"] as const) {
       if (invoice[field] !== line[field]) throw new Error(`Invoice lines disagree on ${field}; accepted data never does`);
     }
     invoice.lines.push(line);

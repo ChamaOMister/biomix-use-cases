@@ -46,6 +46,13 @@ export function initials(name: string): string {
     .join("");
 }
 
+/** Choice labels by ID: the name alone, or "name · ID" when two choices share a name. */
+export function optionLabels(options: readonly { id: string; label: string }[]): Map<string, string> {
+  const counts = new Map<string, number>();
+  for (const option of options) counts.set(option.label, (counts.get(option.label) ?? 0) + 1);
+  return new Map(options.map((option) => [option.id, counts.get(option.label)! > 1 ? `${option.label} · ${option.id}` : option.label]));
+}
+
 /** Brazilian states (UF) by code, for readable labels. */
 export const STATE_NAMES: Readonly<Record<string, string>> = {
   AC: "Acre", AL: "Alagoas", AM: "Amazonas", AP: "Amapá", BA: "Bahia", CE: "Ceará", DF: "Distrito Federal",

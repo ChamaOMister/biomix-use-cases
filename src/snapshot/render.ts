@@ -19,7 +19,7 @@ import {
 import { BUSINESS_UNIT_LABELS, PAYMENT_SCHEDULE_LABELS } from "../domain/sales-feed/contract.ts";
 import type { CalendarDate } from "../domain/sales-import/dates.ts";
 import type { BusinessUnit, PaymentSchedule, SalesLine } from "../domain/sales-import/types.ts";
-import { axisLabel, formatMonth, initials, niceCeiling, share, stateLabel } from "../domain/sales-report/display.ts";
+import { axisLabel, formatMonth, initials, niceCeiling, optionLabels, share, stateLabel } from "../domain/sales-report/display.ts";
 import { formatBrlCents } from "../domain/sales-report/format.ts";
 import { buildSalesRankings, type RankingRow, type SalesRankings } from "../domain/sales-report/rankings.ts";
 import {
@@ -73,11 +73,7 @@ function select(name: FilterField, label: string, all: string, options: readonly
 }
 
 /** Names, never IDs, unless two choices share a name. */
-function byName(options: readonly LabeledOption[]): [string, string][] {
-  const counts = new Map<string, number>();
-  for (const option of options) counts.set(option.label, (counts.get(option.label) ?? 0) + 1);
-  return options.map((option) => [option.id, counts.get(option.label)! > 1 ? `${option.label} · ${option.id}` : option.label]);
-}
+const byName = (options: readonly LabeledOption[]): [string, string][] => [...optionLabels(options)];
 
 /** The filter bar, with every choice present in the data. Each change applies at once. */
 export function renderFilterForm(options: ReportFilterOptions, states: readonly string[]): string {

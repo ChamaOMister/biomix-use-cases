@@ -5,7 +5,7 @@ import type { CollectionsReport, CollectionsReportResult } from "@/domain/collec
 import { PAYMENT_SCHEDULE_LABELS } from "@/domain/sales-feed/contract";
 import type { CalendarDate } from "@/domain/sales-import/dates";
 import type { BusinessUnit } from "@/domain/sales-import/types";
-import { formatMonth, initials, stateLabel } from "@/domain/sales-report/display";
+import { formatMonth, initials, share, stateLabel } from "@/domain/sales-report/display";
 import { formatBrlCents } from "@/domain/sales-report/format";
 import type { SalesReport, SalesReportResult } from "@/domain/sales-report/report";
 import { buildStoredCollectionsReport } from "@/server/collections/stored-collections";
@@ -124,6 +124,7 @@ export async function StoredSalesReport({ filters }: { filters: StoredReportFilt
         <SalesSections
           report={loaded.report.report}
           rankings={loaded.rankings.ok ? loaded.rankings.rankings : null}
+          rankingsMessage={loaded.rankings.ok ? "" : loaded.rankings.message}
           filters={values}
         />
       )}
@@ -177,7 +178,17 @@ function Kpi({ label, value, foot, icon }: { label: string; value: string; foot:
   );
 }
 
-function SalesSections({ report, rankings, filters }: { report: SalesReport; rankings: SalesRankings | null; filters: FilterValues }) {
+function SalesSections({
+  report,
+  rankings,
+  rankingsMessage,
+  filters,
+}: {
+  report: SalesReport;
+  rankings: SalesRankings | null;
+  rankingsMessage: string;
+  filters: FilterValues;
+}) {
   const { totals } = report;
   const rankRows = (rows: RankingRow[], key: FilterKey, limit: number) =>
     rows.slice(0, limit).map((row) => ({
@@ -235,7 +246,7 @@ function SalesSections({ report, rankings, filters }: { report: SalesReport; ran
       <section id="distribution" aria-labelledby="distribution-title">
         <SectionTitle id="distribution-title" title="Where the sales come from" subtitle="Click a name to add it as a filter; click it again to remove it" />
         {rankings === null ? (
-          <p className="card panel error">The rankings could not be computed for this selection.</p>
+          <p className="card panel error">{rankingsMessage}</p>
         ) : (
           <>
             <div className="charts">
@@ -321,7 +332,7 @@ function CustomerTable({ rows, filters, totalCents }: { rows: RankingRow[]; filt
                     <td>{row.detail}</td>
                     <td className="num">{integer.format(row.invoiceCount)}</td>
                     <td className="num">{integer.format(row.lineCount)}</td>
-                    <td className="num">{totalCents > 0 ? `${(Math.round((row.salesCents * 1000) / totalCents) / 10).toLocaleString("pt-BR", { minimumFractionDigits: 1 })}%` : ""}</td>
+                    <td className="num">{share(row.salesCents, totalCents)}</td>
                     <td className="num money">{formatBrlCents(row.salesCents)}</td>
                   </tr>
                 ))}

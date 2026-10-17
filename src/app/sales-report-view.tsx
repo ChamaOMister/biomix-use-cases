@@ -1,9 +1,10 @@
 // No "use client": renders on the server for the stored report and in the browser for the XLSX check.
+import { BUSINESS_UNIT_LABELS } from "@/domain/sales-feed/contract";
 import type { BusinessUnit } from "@/domain/sales-import/types";
 import { formatBrlCents } from "@/domain/sales-report/format";
 import type { ReportRow, SalesReport } from "@/domain/sales-report/report";
 
-export const BUSINESS_UNIT_NAMES: Record<BusinessUnit, string> = { AGRO: "Agro", HOME_GARDEN: "Home & Garden" };
+export const BUSINESS_UNIT_NAMES: Readonly<Record<BusinessUnit, string>> = BUSINESS_UNIT_LABELS;
 export const integer = new Intl.NumberFormat("pt-BR");
 
 /** Totals, filter scope, reconciliation check and breakdowns of one computed report. */

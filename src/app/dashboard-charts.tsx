@@ -28,9 +28,10 @@ export function ColumnChart({ data, label }: { data: ColumnDatum[]; label: strin
           const [year, month] = datum.key.split("-");
           const showYear = month === "01" || index === 0;
           return (
-            <div className="column" key={datum.key} tabIndex={0} aria-label={`${formatMonth(datum.key)}: ${formatBrlCents(datum.valueCents)}`}>
+            // Not focusable: the chart is one image to assistive technology; the exact amounts are in its table.
+            <div className="column" key={datum.key}>
               <span className="column-bar" style={{ height: `${(datum.valueCents / top) * 100}%` }} />
-              <span className="tip" role="tooltip">
+              <span className="tip">
                 <b>{formatMonth(datum.key)}</b>
                 {formatBrlCents(datum.valueCents)}
                 <small>{datum.note}</small>
