@@ -5,10 +5,11 @@ import type { CollectionsReport, CollectionsReportResult } from "@/domain/collec
 import { PAYMENT_SCHEDULE_LABELS } from "@/domain/sales-feed/contract";
 import type { CalendarDate } from "@/domain/sales-import/dates";
 import type { BusinessUnit } from "@/domain/sales-import/types";
+import { formatMonth, initials, share, stateLabel } from "@/domain/sales-report/display";
 import { formatBrlCents } from "@/domain/sales-report/format";
 import type { SalesReport, SalesReportResult } from "@/domain/sales-report/report";
 import { buildStoredCollectionsReport } from "@/server/collections/stored-collections";
-import { databaseErrorDiagnostics, DatabaseNotConfiguredError, getPool } from "@/server/db/pool";
+import { databaseErrorDiagnostics, DatabaseNotConfiguredError, getPool, withReadSnapshot } from "@/server/db/pool";
 import { buildStoredRankings, type RankingRow, type SalesRankings, type SalesRankingsResult } from "@/server/sales-report/stored-rankings";
 import {
   buildStoredSalesReport,
@@ -17,9 +18,9 @@ import {
   type StoredReportFilters,
 } from "@/server/sales-report/stored-report";
 import { CollectionsView } from "./collections-view";
-import { BarList, ColumnChart, formatMonth, initials, RankList } from "./dashboard-charts";
+import { BarList, ColumnChart, RankList } from "./dashboard-charts";
 import { FilterBar } from "./filter-bar";
-import { stateLabel, toggleFilterHref, type FilterKey, type FilterValues } from "./report-filters";
+import { toggleFilterHref, type FilterKey, type FilterValues } from "./report-filters";
 import { BUSINESS_UNIT_NAMES, integer, SalesBreakdowns } from "./sales-report-view";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -63,14 +64,15 @@ type Loaded =
 
 async function load(filters: StoredReportFilters): Promise<Loaded> {
   try {
-    const pool = getPool();
-    const [options, report, collections, rankings] = await Promise.all([
-      storedFilterOptions(pool),
-      buildStoredSalesReport(pool, filters),
-      buildStoredCollectionsReport(pool, filters),
-      buildStoredRankings(pool, filters),
-    ]);
-    return { ok: true, options, report, collections, rankings };
+    // One snapshot for the whole page, so a delivery applied mid-request cannot make the rankings,
+    // collections or filter choices disagree with the totals beside them.
+    return await withReadSnapshot(getPool(), async (db) => {
+      const options = await storedFilterOptions(db);
+      const report = await buildStoredSalesReport(db, filters);
+      const collections = await buildStoredCollectionsReport(db, filters);
+      const rankings = await buildStoredRankings(db, filters);
+      return { ok: true, options, report, collections, rankings } as const;
+    });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
       return { ok: false, message: "The database is not configured: DATABASE_URL is not set. See docs/database.md." };
@@ -122,6 +124,7 @@ export async function StoredSalesReport({ filters }: { filters: StoredReportFilt
         <SalesSections
           report={loaded.report.report}
           rankings={loaded.rankings.ok ? loaded.rankings.rankings : null}
+          rankingsMessage={loaded.rankings.ok ? "" : loaded.rankings.message}
           filters={values}
         />
       )}
@@ -175,7 +178,17 @@ function Kpi({ label, value, foot, icon }: { label: string; value: string; foot:
   );
 }
 
-function SalesSections({ report, rankings, filters }: { report: SalesReport; rankings: SalesRankings | null; filters: FilterValues }) {
+function SalesSections({
+  report,
+  rankings,
+  rankingsMessage,
+  filters,
+}: {
+  report: SalesReport;
+  rankings: SalesRankings | null;
+  rankingsMessage: string;
+  filters: FilterValues;
+}) {
   const { totals } = report;
   const rankRows = (rows: RankingRow[], key: FilterKey, limit: number) =>
     rows.slice(0, limit).map((row) => ({
@@ -233,7 +246,7 @@ function SalesSections({ report, rankings, filters }: { report: SalesReport; ran
       <section id="distribution" aria-labelledby="distribution-title">
         <SectionTitle id="distribution-title" title="Where the sales come from" subtitle="Click a name to add it as a filter; click it again to remove it" />
         {rankings === null ? (
-          <p className="card panel error">The rankings could not be computed for this selection.</p>
+          <p className="card panel error">{rankingsMessage}</p>
         ) : (
           <>
             <div className="charts">
@@ -319,7 +332,7 @@ function CustomerTable({ rows, filters, totalCents }: { rows: RankingRow[]; filt
                     <td>{row.detail}</td>
                     <td className="num">{integer.format(row.invoiceCount)}</td>
                     <td className="num">{integer.format(row.lineCount)}</td>
-                    <td className="num">{totalCents > 0 ? `${(Math.round((row.salesCents * 1000) / totalCents) / 10).toLocaleString("pt-BR", { minimumFractionDigits: 1 })}%` : ""}</td>
+                    <td className="num">{share(row.salesCents, totalCents)}</td>
                     <td className="num money">{formatBrlCents(row.salesCents)}</td>
                   </tr>
                 ))}

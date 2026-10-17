@@ -1,6 +1,8 @@
 /**
  * Invoiced sales ranked by product, customer, seller and customer state, over the stored feed data
- * and with the same filters as the report. Rows carry names, not just IDs, for the dashboard.
+ * and with the same filters as the report. Rows carry names, not just IDs, for the dashboard. It
+ * returns the same shape as the pure `buildSalesRankings`, keyed by seller ID instead of name; the
+ * tests compare both on the same data.
  *
  * Amounts are invoice-line amounts, like the report: with a product filter, only that product's
  * lines count. Each ranking's sales and lines sum to the report's totals; invoice counts do not
@@ -10,34 +12,14 @@
 import type pg from "pg";
 import { BUSINESS_UNIT_LABELS } from "@/domain/sales-feed/contract";
 import type { BusinessUnit } from "@/domain/sales-import/types";
+import { compareRankingRows, type SalesRankings, type SalesRankingsResult } from "@/domain/sales-report/rankings";
 import { normalizeReportFilters } from "@/domain/sales-report/report";
 import { toSafeInteger } from "../db/pool";
 import { FILTER_SQL, filterParams, type StoredReportFilters } from "./stored-report";
 
 type Queryable = Pick<pg.Pool, "query">;
 
-export interface RankingRow {
-  /** The ID used to filter by this row (the state itself for states). */
-  key: string;
-  label: string;
-  /** Short context shown under the label: category, location or business unit. */
-  detail: string | null;
-  lineCount: number;
-  invoiceCount: number;
-  salesCents: number;
-}
-
-export interface SalesRankings {
-  /** Each sorted by sales, largest first, then by label. */
-  byProduct: RankingRow[];
-  byCustomer: RankingRow[];
-  bySeller: RankingRow[];
-  byState: RankingRow[];
-}
-
-export type SalesRankingsResult =
-  | { ok: true; rankings: SalesRankings }
-  | { ok: false; code: "FILTER_INVALID_PERIOD" | "TOTAL_OUT_OF_RANGE"; message: string };
+export type { RankingRow, SalesRankings, SalesRankingsResult } from "@/domain/sales-report/rankings";
 
 interface AggregateRow {
   level: number;
@@ -80,9 +62,6 @@ const RANKINGS_SQL = `
   WHERE ${FILTER_SQL}
   GROUP BY GROUPING SETS ((l.product_id), (i.customer_id), (i.seller_id), (c.state))`;
 
-const byRank = (a: RankingRow, b: RankingRow) =>
-  b.salesCents - a.salesCents || a.label.localeCompare(b.label, "pt-BR") || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
-
 export async function buildStoredRankings(db: Queryable, rawFilters: StoredReportFilters): Promise<SalesRankingsResult> {
   const normalized = normalizeReportFilters(rawFilters);
   if (!normalized.ok) return normalized;
@@ -108,6 +87,6 @@ export async function buildStoredRankings(db: Queryable, rawFilters: StoredRepor
       rankings.byState.push({ key: row.state, detail: null, ...totals });
     }
   }
-  for (const list of [rankings.byProduct, rankings.byCustomer, rankings.bySeller, rankings.byState]) list.sort(byRank);
+  for (const list of [rankings.byProduct, rankings.byCustomer, rankings.bySeller, rankings.byState]) list.sort(compareRankingRows);
   return { ok: true, rankings };
 }

@@ -6,6 +6,7 @@ import { validateDelivery, type InvoicePayload } from "@/domain/sales-feed/contr
 import { SELLERS } from "@/domain/sales-feed/reference-data";
 import type { SalesLine } from "@/domain/sales-import/types";
 import { formatBrlCents } from "@/domain/sales-report/format";
+import { buildSalesRankings } from "@/domain/sales-report/rankings";
 import { buildSalesReport, type ReportFilters } from "@/domain/sales-report/report";
 import { DEFAULT_SEED, generateSyntheticFeed, replayDeliveries, type SyntheticFeed } from "@/synthetic-data/generate";
 import { buildSnapshotHtml } from "./build";
@@ -30,8 +31,8 @@ function replayedLines(invoices: Iterable<InvoicePayload>): SalesLine[] {
         customerId: invoice.customer.id,
         customerName: invoice.customer.name,
         taxId: null,
-        customerState: null,
-        customerCity: null,
+        customerState: invoice.customer.state,
+        customerCity: invoice.customer.city,
         productId: line.productId,
         productName: line.productName,
         productCategory: line.productCategory,
@@ -63,6 +64,9 @@ const dataOf = (html: string) =>
 const scriptOf = (html: string) => between(html, /<script>([\s\S]*?)<\/script>/);
 const styleOf = (html: string) => between(html, /<style>([\s\S]*?)<\/style>/);
 const resultsOf = (html: string) => between(html, /<div id="results">([\s\S]*?)<\/div>\n<footer>/);
+/** The exact amount shown on an indicator card. */
+const kpiValue = (html: string, label: string) =>
+  between(html, new RegExp(`${label}<span class="kpi-icon" aria-hidden="true">[^<]*</span></div><div class="kpi-value">([^<]*)</div>`));
 
 /**
  * Runs the file's bundled script against a stand-in for the few DOM features it uses, and returns
@@ -129,7 +133,7 @@ describe("report snapshot", () => {
 
   it("embeds exactly the invoices stored after replaying every delivery", () => {
     const data = dataOf(html);
-    expect(data).toMatchObject({ format: 1, seed: DEFAULT_SEED, asOf: feed.summary.lastBillingDate, closedMonthDeliveries: 44, pendingDeliveryMonth: "2026-09" });
+    expect(data).toMatchObject({ format: 2, seed: DEFAULT_SEED, asOf: feed.summary.lastBillingDate, closedMonthDeliveries: 44, pendingDeliveryMonth: "2026-09" });
     const embedded = expandSnapshotLines(data);
     expect(embedded).toHaveLength(feed.summary.lines);
     expect(data.totals).toEqual({
@@ -138,8 +142,8 @@ describe("report snapshot", () => {
       salesCents: feed.summary.byYear.reduce((sum, year) => sum + year.actualCents, 0),
     });
     const key = (line: SalesLine) =>
-      [line.invoiceNumber, line.lineId, line.billingDate, line.customerId, line.productId, line.sellerName, line.businessUnit,
-        line.paymentSchedule, line.packageQuantity, line.unitPriceCents, line.lineAmountCents, line.commissionAmountCents].join("|");
+      [line.invoiceNumber, line.lineId, line.billingDate, line.customerId, line.customerState, line.customerCity, line.productId,
+        line.sellerName, line.businessUnit, line.paymentSchedule, line.packageQuantity, line.unitPriceCents, line.lineAmountCents, line.commissionAmountCents].join("|");
     expect(embedded.map(key).sort()).toEqual(lines.map(key).sort());
   });
 
@@ -148,9 +152,38 @@ describe("report snapshot", () => {
     const collections = buildCollectionsReport(lines, {});
     if (!sales.ok || !collections.ok) throw new Error("expected reports");
     expect(resultsOf(html)).toBe(renderResults(lines, {}));
-    expect(resultsOf(html)).toContain(`<dt>Invoiced sales</dt><dd>${formatBrlCents(sales.report.totals.salesCents)}</dd>`);
-    expect(resultsOf(html)).toContain(`<dt>Scheduled collections</dt><dd>${formatBrlCents(collections.report.totals.scheduledCents)}</dd>`);
+    expect(kpiValue(resultsOf(html), "Invoiced sales")).toBe(formatBrlCents(sales.report.totals.salesCents));
+    expect(kpiValue(resultsOf(html), "Scheduled collections")).toBe(formatBrlCents(collections.report.totals.scheduledCents));
     expect(resultsOf(html)).not.toContain("✗");
+  });
+
+  it("shows the rankings of the replayed invoices, largest first, and every customer", () => {
+    const rankings = buildSalesRankings(lines, {});
+    if (!rankings.ok) throw new Error("expected rankings");
+    const results = resultsOf(html);
+    const top = rankings.rankings.byProduct[0]!;
+    expect(results).toContain(`<span class="rank-num">01</span><span class="rank-main"><b>${escapeHtml(top.label)}</b>`);
+    expect(results).toContain(`${formatBrlCents(top.salesCents)}<small>`);
+    for (const state of rankings.rankings.byState) expect(results).toContain(formatBrlCents(state.salesCents));
+    expect(results.match(/<span class="customer-cell">/g)).toHaveLength(new Set(lines.map((line) => line.customerId)).size);
+  });
+
+  it("offers every state, seller and business unit by name, never by ID", () => {
+    const form = between(html, /<form class="filter-bar" id="filters" aria-label="Report filters">([\s\S]*?)<\/form>/);
+    for (const state of new Set(lines.map((line) => line.customerState!))) expect(form).toContain(`<option value="${state}">`);
+    const { customerId, customerName, productId, productName } = lines[0]!;
+    expect(form).toContain(`<option value="${customerId}">${escapeHtml(customerName)}</option>`);
+    expect(form).toContain(`<option value="${productId}">${escapeHtml(productName)}</option>`);
+    for (const seller of SELLERS) expect(form).toContain(`<option value="${escapeHtml(seller.name)}">`);
+    expect(form).toContain('<option value="HOME_GARDEN">Home &amp; Garden</option>');
+    expect(form).not.toContain(" · ");
+  });
+
+  it("labels months as 'Jan 2025' and keeps them on one line", () => {
+    const results = resultsOf(html);
+    expect(results).toMatch(/<td class="key">Jan 2025<\/td>/);
+    expect(results).not.toMatch(/<td class="key">\d{4}-\d{2}<\/td>/);
+    expect(styleOf(html)).toContain("td.key { white-space: nowrap; }");
   });
 
   it("recomputes both reports in the browser when filters change", () => {
@@ -162,6 +195,7 @@ describe("report snapshot", () => {
       { businessUnit: "AGRO", from: "2025-01-01", to: "2025-12-31" },
       { sellerName: SELLER_NAME.get("S01")!, from: "2024-11-01", to: "2024-11-30" },
       { customerId: lines[0]!.customerId },
+      { customerState: "MG", sellerName: SELLER_NAME.get("S04")! },
     ];
     for (const filters of cases) {
       page.clear();
@@ -170,8 +204,8 @@ describe("report snapshot", () => {
       const collections = buildCollectionsReport(lines, filters);
       if (!sales.ok || !collections.ok) throw new Error("expected reports");
       expect(page.results()).toBe(renderResults(lines, filters));
-      expect(page.results()).toContain(`<dt>Invoiced sales</dt><dd>${formatBrlCents(sales.report.totals.salesCents)}</dd>`);
-      expect(page.results()).toContain(`<dt>Scheduled collections</dt><dd>${formatBrlCents(collections.report.totals.scheduledCents)}</dd>`);
+      expect(kpiValue(page.results(), "Invoiced sales")).toBe(formatBrlCents(sales.report.totals.salesCents));
+      expect(kpiValue(page.results(), "Scheduled collections")).toBe(formatBrlCents(collections.report.totals.scheduledCents));
       expect(sales.report.totals.salesCents).toBeGreaterThan(0);
       expect(page.results()).not.toContain("✗");
     }
@@ -198,6 +232,8 @@ describe("report snapshot", () => {
     expect(html).not.toMatch(/https?:\/\/|\/\/[a-z0-9.-]+\.[a-z]{2,}\//i);
     expect(html).not.toMatch(/<(link|img|iframe|object|embed|base)\b|\ssrc=|@import|url\(|fetch\(|XMLHttpRequest|WebSocket|import\(/i);
     expect(html.match(/<script\b/g)).toHaveLength(2);
+    // The policy also forbids inline style attributes, so nothing may rely on them.
+    expect(html).not.toMatch(/\sstyle=/i);
     expect(Buffer.byteLength(html)).toBeLessThan(3 * 1024 * 1024);
   });
 

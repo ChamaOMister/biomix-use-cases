@@ -4,6 +4,7 @@ import { PAYMENT_SCHEDULE_OFFSETS } from "@/domain/collections/schedule";
 import { validateDelivery, type InvoicePayload } from "@/domain/sales-feed/contract";
 import { SELLERS } from "@/domain/sales-feed/reference-data";
 import type { SalesLine } from "@/domain/sales-import/types";
+import { buildSalesRankings, type SalesRankingsResult } from "@/domain/sales-report/rankings";
 import { buildSalesReport, normalizeReportFilters, type ReportFilters } from "@/domain/sales-report/report";
 import { buildSnapshotData } from "@/snapshot/build";
 import { expandSnapshotLines } from "@/snapshot/data";
@@ -125,7 +126,6 @@ describe.skipIf(!hasDatabase)("stored reports against the pure report modules", 
     ["a period without sales", () => ({ from: "2020-01-01", to: "2020-12-31" })],
     ["empty strings as no filter", () => ({ customerId: "", from: "" }) as StoredReportFilters],
   ];
-  // The snapshot does not embed customer states, so these cases are compared with the pure modules only.
   const stateCases: [string, () => StoredReportFilters][] = [
     ["one state", () => ({ state: "MG" })],
     ["a seller within a state", () => ({ sellerId: "S03", state: "RJ" })],
@@ -156,9 +156,22 @@ describe.skipIf(!hasDatabase)("stored reports against the pure report modules", 
     }
   });
 
-  it.each(cases)("the report snapshot's data gives the stored reports: %s", async (_name, filters) => {
+  it.each(allCases)("the report snapshot's data gives the stored reports: %s", async (_name, filters) => {
     expect(buildSalesReport(snapshotLines, pureFilters(filters()))).toEqual(await buildStoredSalesReport(db.pool, filters()));
     expect(buildCollectionsReport(snapshotLines, pureFilters(filters()))).toEqual(await buildStoredCollectionsReport(db.pool, filters()));
+  });
+
+  /** Stored rankings key sellers by ID; the pure ones, like the pure filters, by name. */
+  const withSellerNames = (result: SalesRankingsResult): SalesRankingsResult =>
+    result.ok
+      ? { ok: true, rankings: { ...result.rankings, bySeller: result.rankings.bySeller.map((row) => ({ ...row, key: SELLER_NAME.get(row.key)! })) } }
+      : result;
+
+  it.each(allCases)("rankings match the pure rankings and the snapshot's: %s", async (_name, filters) => {
+    const stored = withSellerNames(await buildStoredRankings(db.pool, filters()));
+    expect(stored.ok).toBe(true);
+    expect(stored).toEqual(buildSalesRankings(lines, pureFilters(filters())));
+    expect(stored).toEqual(buildSalesRankings(snapshotLines, pureFilters(filters())));
   });
 
   it.each(allCases)("rankings match an independent count of the lines: %s", async (_name, filters) => {

@@ -58,7 +58,9 @@ The endpoint (`src/server/sales-feed/delivery-handler.ts`) checks, in order: the
 
 `src/server/sales-report/stored-report.ts` computes the totals, month and business-unit breakdowns in one SQL statement (`GROUPING SETS`). It returns the same `SalesReport` shape as the pure `buildSalesReport` and shares its filter checks and reconciliation. The seller filter uses the seller ID. The tests replay the full seeded feed into Postgres and require both implementations to return identical sales and collections reports for a set of filters.
 
-The page is a server component: filters are a GET form, so every filtered view has its own URL. Without a database, or before `db:migrate`, the page explains what to run instead of failing.
+The page is a server component, and its filters live in the URL, so every filtered view has its own URL. With JavaScript, the filter bar navigates on each change, and dates apply when the field is left or Enter is pressed. Without JavaScript, it is a GET form with an Apply button. The page reads its filter choices, report, collections and rankings in one read-only, repeatable-read transaction (`withReadSnapshot` in `src/server/db/pool.ts`), so a delivery applied mid-request cannot make them disagree. Without a database, or before `db:migrate`, the page explains what to run instead of failing.
+
+`src/server/sales-report/stored-rankings.ts` ranks invoiced sales by product, customer, seller and customer state in one SQL statement, with the report's filters. It returns the same shape as the pure `buildSalesRankings`, keyed by seller ID instead of name, and the tests require both to agree.
 
 `src/server/collections/stored-collections.ts` computes the scheduled collections of the same filters in one SQL statement: totals, due-month and payment-schedule breakdowns, and the invoiced sales of the selected invoices read from `invoice_lines`, for the reconciliation. It returns the same result as the pure `buildCollectionsReport`. Filters select whole invoices; a product filter is refused. See [scheduled collections](collections.md).
 

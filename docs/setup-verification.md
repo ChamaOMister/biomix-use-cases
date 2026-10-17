@@ -231,6 +231,20 @@ Still open after approval: the tag-triggered release job, the published download
 
 The development database was only read. Generated files, the downloaded asset, scripts and screenshots stayed outside the repository. Not performed: the waived browser steps through a Codespace's forwarded address, and a download from a second machine or a browser other than Chromium. The hosted log warns that `actions/checkout@v4`, `actions/setup-node@v4` and `actions/upload-artifact@v4` target the deprecated Node 20 and were forced to run on Node 24; the runs passed.
 
+## v1.1 preparation, 2026-10-17
+
+Claude, in a Codespace confirmed in sync with `origin/main` at `97b58ef` before work started. Branch `v1.1-dashboard-follow-ups`; scope and findings in the [v1.1 review](reviews/v1.1-review.md).
+
+| Check | Result |
+| --- | --- |
+| `npm run check` with `DATABASE_URL`, after the review fixes (`5b566b9` plus documentation) | Exit 0: ESLint, route types, TypeScript, **537 passed (537) in 22 files**, production build compiled |
+| `npm run snapshot:build` | 1.02 MiB; SHA-256 `8e03aef25ee126d1501bf0c182535a2f3b42990296caa1053c9fe137bacf509d` for this tree (code at `5b566b9`) |
+| Consistent reads | `src/server/db/read-snapshot.test.ts` passes. With the transaction reduced to a plain `BEGIN`, both of its tests fail |
+| Snapshot in headless Chromium (`chrome-headless-shell` from the Codespace's Playwright cache, driven over the DevTools protocol by a throwaway script outside the repository) | Opened from `file://` at 1440 (light and dark), 768, 390 (light and dark) and 360 px, with every `<details>` opened. In each case the scroll width equalled the viewport, nothing outside a table wrapper or SVG extended past it, and no month or name cell wrapped. There were no exceptions, console errors or CSP reports. State MG: R$ 87.963.059,70 → R$ 33.553.089,40, and Clear filters restored the total |
+| Live page, `next start` against the development database | `/`, `/?state=MG&sellerId=S04` and a reversed period each returned 200, about 0.25 s per request. The unfiltered invoiced sales, R$ 87.963.059,70, equal the snapshot's. Typing a date key by key changed no URL and kept focus. Leaving the field applied it, and so did Enter |
+
+The development database was only read. Screenshots and scripts stayed in the session's scratch folder. Not performed: an independent review, a screen-reader run, browsers other than Chromium, and the waived steps through a Codespace's forwarded port.
+
 ## Codespaces workflow update, 2026-09-27
 
 Codespaces is now the primary documented environment. The existing devcontainer requests 2 CPUs / 8 GB RAM, waits for `npm ci` before setup completes, and opens the forwarded app port in the browser. Port visibility is checked in GitHub's Ports panel rather than relying on the removed, undocumented `portsAttributes.visibility` property. See [the cloud workflow](codespaces.md).

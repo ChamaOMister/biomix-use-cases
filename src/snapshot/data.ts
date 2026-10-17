@@ -17,14 +17,15 @@ export type SnapshotLine = [number, number, number, number, number];
 export type SnapshotInvoice = [string, CalendarDate, number, number, BusinessUnit, PaymentSchedule, SnapshotLine[]];
 
 export interface SnapshotData {
-  format: 1;
+  /** 2 added each customer's state and city. */
+  format: 2;
   seed: number;
   /** Last billing date in the data. */
   asOf: CalendarDate;
   closedMonthDeliveries: number;
   pendingDeliveryMonth: string;
-  /** [id, name] */
-  customers: [string, string][];
+  /** [id, name, state (UF), city] */
+  customers: [string, string, string, string][];
   /** [id, name] */
   sellers: [string, string][];
   /** [id, name, category] */
@@ -39,7 +40,7 @@ export interface SnapshotData {
 export function expandSnapshotLines(data: SnapshotData): SalesLine[] {
   const lines: SalesLine[] = [];
   for (const [invoiceNumber, billingDate, customerIndex, sellerIndex, businessUnit, paymentSchedule, invoiceLines] of data.invoices) {
-    const [customerId, customerName] = data.customers[customerIndex]!;
+    const [customerId, customerName, customerState, customerCity] = data.customers[customerIndex]!;
     const [, sellerName] = data.sellers[sellerIndex]!;
     invoiceLines.forEach(([productIndex, packageQuantity, unitPriceCents, lineAmountCents, commissionAmountCents], index) => {
       const [productId, productName, productCategory] = data.products[productIndex]!;
@@ -51,8 +52,8 @@ export function expandSnapshotLines(data: SnapshotData): SalesLine[] {
         customerId,
         customerName,
         taxId: null,
-        customerState: null,
-        customerCity: null,
+        customerState,
+        customerCity,
         productId,
         productName,
         productCategory,
