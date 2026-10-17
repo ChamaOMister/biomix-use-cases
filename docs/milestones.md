@@ -45,6 +45,6 @@ The live page became a dashboard with a customer-state filter (`97b58ef`, merged
 - The snapshot was brought up to the dashboard, with rankings computed by a new pure module that the stored rankings are tested against.
 - Review fixes followed, notably for keyboard date entry.
 
-Both follow-ups above are closed. Claude reviewed the whole range ([v1.1 review](reviews/v1.1-review.md)); that was a self-review, not an independent approval.
+Both follow-ups above are closed. Claude reviewed the whole range ([v1.1 review](reviews/v1.1-review.md)); that was a self-review, not an independent approval. Released as [v1.1.0](https://github.com/ChamaOMister/biomix-use-cases/releases/tag/v1.1.0) on 2026-10-17 ([release verification](setup-verification.md#release-v110-2026-10-17)).
 
 Deferred: Project 2 bounded-tool copilot with deterministic evaluations, reaching the database through an MCP server with fixed read-only tools; Project 3 n8n agent with approval, rejection, tool-failure, and duplicate-trigger tests and a fixed-workflow baseline. Neither should be scaffolded here.

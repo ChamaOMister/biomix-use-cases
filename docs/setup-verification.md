@@ -245,6 +245,22 @@ Claude, in a Codespace confirmed in sync with `origin/main` at `97b58ef` before 
 
 The development database was only read. Screenshots and scripts stayed in the session's scratch folder. Not performed: an independent review, a screen-reader run, browsers other than Chromium, and the waived steps through a Codespace's forwarded port.
 
+## Release v1.1.0, 2026-10-17
+
+[PR #5](https://github.com/ChamaOMister/biomix-use-cases/pull/5) merged `v1.1-dashboard-follow-ups` (head `9da632d`) into `main` as merge commit `233d8b2dbe1267e856e3bd473334a5bf682a59e2`, whose tree is identical to the head's. The annotated tag `v1.1.0` (object `fecd75e`) points to `233d8b2`. Before it was created, `v1.0.0` was the only tag.
+
+| Check | Result |
+| --- | --- |
+| PR CI, head `9da632d` | Push run [39076346879](https://github.com/ChamaOMister/biomix-use-cases/actions/runs/39076346879) and pull-request run [39076350041](https://github.com/ChamaOMister/biomix-use-cases/actions/runs/39076350041): `check` passed; `release-snapshot` skipped |
+| `main` CI, `233d8b2` | Run [39076454335](https://github.com/ChamaOMister/biomix-use-cases/actions/runs/39076454335): `check` passed; `release-snapshot` skipped |
+| Tag CI, `v1.1.0` → `233d8b2` | Run [39076587211](https://github.com/ChamaOMister/biomix-use-cases/actions/runs/39076587211). `check` passed with **537 passed (537) in 22 files** (hosted log, Node v24.21.0), and `release-snapshot` passed and created the release |
+| Release | [v1.1.0](https://github.com/ChamaOMister/biomix-use-cases/releases/tag/v1.1.0): published 2026-10-17T22:50:31Z; not a draft or prerelease. Asset `biomix-report-snapshot.html`: 1,068,728 bytes, GitHub digest `sha256:8e03aef25ee126d1501bf0c182535a2f3b42990296caa1053c9fe137bacf509d` |
+| Download through the README link | `curl --fail -sS -L` on the latest-release link, unauthenticated: HTTP 200, 1,068,728 bytes. `sha256sum` gives `8e03aef2…bacf509d`, and `cmp` finds it identical to a local `npm run snapshot:build` of the same tree |
+| Downloaded file in headless Chromium | Opened from `file://` at 1440 (light and dark), 768, 390 (light and dark) and 360 px with every `<details>` opened. No overflow, nothing outside a table wrapper or SVG, and no wrapped month or name cell. No exceptions, console errors or CSP reports, and no requests apart from Chromium's built-in `data:` icon for date inputs |
+| Figures against the database | Read inside a `BEGIN READ ONLY` transaction that was rolled back. Unfiltered invoiced sales: file R$ 87.963.059,70, SQL 8796305970 cents (6.468 invoices). State MG: file R$ 33.553.089,40, SQL 3355308940 cents. Clear filters restored the total |
+
+Not performed: an independent review, browsers other than Chromium, and a download from a second machine. The waived Codespace forwarded-port steps remain waived.
+
 ## Codespaces workflow update, 2026-09-27
 
 Codespaces is now the primary documented environment. The existing devcontainer requests 2 CPUs / 8 GB RAM, waits for `npm ci` before setup completes, and opens the forwarded app port in the browser. Port visibility is checked in GitHub's Ports panel rather than relying on the removed, undocumented `portsAttributes.visibility` property. See [the cloud workflow](codespaces.md).

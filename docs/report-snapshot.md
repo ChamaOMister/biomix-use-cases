@@ -37,6 +37,8 @@ CI builds the snapshot on every push, after `npm run check` passes, and keeps it
 
 v1.0.0 was published on 2026-09-29 from `af486a5`. Its asset's SHA-256 is `b7409bd341c147087f4d2b535d3eb3ba4a36b9fcf613a5eb1d868f4c23c5514f` (942,242 bytes). The file served by the download link is byte-identical to the CI build artifact and to a local rebuild. For the checks, see [setup verification](setup-verification.md#release-v100-2026-09-29) and the [release audit](reviews/project-1-release-review.md).
 
+v1.1.0 was published on 2026-10-17 from `233d8b2`. Its asset's SHA-256 is `8e03aef25ee126d1501bf0c182535a2f3b42990296caa1053c9fe137bacf509d` (1,068,728 bytes). The download link serves it, byte-identical to a local rebuild ([setup verification](setup-verification.md#release-v110-2026-10-17)).
+
 The v1.0.0 known issue, due-month labels wrapping at mobile width, is fixed for v1.1.0: months read "Jan 2025" and never wrap, and wide tables scroll inside their card.
 
 ## Tests
