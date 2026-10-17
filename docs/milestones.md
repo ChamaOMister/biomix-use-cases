@@ -39,7 +39,7 @@ Non-blocking follow-ups from the review, both closed on 2026-10-17 (see below):
 
 ## After v1.0.0: dashboard and v1.1, 2026-10-17
 
-The live page became a dashboard with a customer-state filter (`97b58ef`, 2026-10-02, pushed without review). Three changes on 2026-10-17 then prepared v1.1.0:
+The live page became a dashboard with a customer-state filter (`97b58ef`, merged through [PR #4](https://github.com/ChamaOMister/biomix-use-cases/pull/4) on 2026-10-02 with no review recorded). Three changes on 2026-10-17 then prepared v1.1.0:
 
 - The page reads its reports in one read-only, repeatable-read transaction.
 - The snapshot was brought up to the dashboard, with rankings computed by a new pure module that the stored rankings are tested against.
