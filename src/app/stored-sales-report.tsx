@@ -8,7 +8,7 @@ import type { BusinessUnit } from "@/domain/sales-import/types";
 import { formatBrlCents } from "@/domain/sales-report/format";
 import type { SalesReport, SalesReportResult } from "@/domain/sales-report/report";
 import { buildStoredCollectionsReport } from "@/server/collections/stored-collections";
-import { databaseErrorDiagnostics, DatabaseNotConfiguredError, getPool } from "@/server/db/pool";
+import { databaseErrorDiagnostics, DatabaseNotConfiguredError, getPool, withReadSnapshot } from "@/server/db/pool";
 import { buildStoredRankings, type RankingRow, type SalesRankings, type SalesRankingsResult } from "@/server/sales-report/stored-rankings";
 import {
   buildStoredSalesReport,
@@ -63,14 +63,15 @@ type Loaded =
 
 async function load(filters: StoredReportFilters): Promise<Loaded> {
   try {
-    const pool = getPool();
-    const [options, report, collections, rankings] = await Promise.all([
-      storedFilterOptions(pool),
-      buildStoredSalesReport(pool, filters),
-      buildStoredCollectionsReport(pool, filters),
-      buildStoredRankings(pool, filters),
-    ]);
-    return { ok: true, options, report, collections, rankings };
+    // One snapshot for the whole page, so a delivery applied mid-request cannot make the rankings,
+    // collections or filter choices disagree with the totals beside them.
+    return await withReadSnapshot(getPool(), async (db) => {
+      const options = await storedFilterOptions(db);
+      const report = await buildStoredSalesReport(db, filters);
+      const collections = await buildStoredCollectionsReport(db, filters);
+      const rankings = await buildStoredRankings(db, filters);
+      return { ok: true, options, report, collections, rankings } as const;
+    });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
       return { ok: false, message: "The database is not configured: DATABASE_URL is not set. See docs/database.md." };

@@ -43,6 +43,30 @@ export function getPool(): pg.Pool {
   return shared.biomixPool;
 }
 
+/**
+ * Runs `read` in one read-only, repeatable-read transaction, so every query it makes sees the same
+ * committed data even if a delivery is applied meanwhile. The queries share one connection: await
+ * them in turn, because pg deprecates overlapping queries on one client.
+ */
+export async function withReadSnapshot<T>(pool: pg.Pool, read: (db: pg.PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  // A connection whose rollback failed is discarded instead of returned to the pool.
+  let broken: Error | undefined;
+  try {
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const result = await read(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK").catch((rollbackError: Error) => {
+      broken = rollbackError;
+    });
+    throw error;
+  } finally {
+    client.release(broken);
+  }
+}
+
 /** Converts a `bigint`/`numeric` column (a string) to a number, or null if it is not a safe integer. */
 export function toSafeInteger(value: string | number | null): number | null {
   if (value === null) return null;
