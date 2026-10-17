@@ -50,15 +50,17 @@ export function buildSnapshotData(source: SnapshotSource): SnapshotData {
   );
 
   // Latest details win, as in the database's upserts.
-  const customerNames = new Map<string, string>();
+  const customerDetails = new Map<string, [string, string, string]>();
   const productDetails = new Map<string, [string, string]>();
   for (const { payload } of deliveries) {
     for (const invoice of payload.invoices) {
-      customerNames.set(invoice.customer.id, invoice.customer.name);
+      customerDetails.set(invoice.customer.id, [invoice.customer.name, invoice.customer.state, invoice.customer.city]);
       for (const line of invoice.lines) productDetails.set(line.productId, [line.productName, line.productCategory]);
     }
   }
-  const customers = [...customerNames].sort(byId);
+  const customers = [...customerDetails]
+    .map(([id, [name, state, city]]): [string, string, string, string] => [id, name, state, city])
+    .sort(byId);
   const sellers = SELLERS.map((seller): [string, string] => [seller.sellerId, seller.name]).sort(byId);
   const products = [...productDetails].map(([id, [name, category]]): [string, string, string] => [id, name, category]).sort(byId);
   const index = (list: readonly [string, ...string[]][]) => new Map(list.map(([id], position) => [id, position]));
@@ -84,7 +86,7 @@ export function buildSnapshotData(source: SnapshotSource): SnapshotData {
     ],
   );
   const data: SnapshotData = {
-    format: 1,
+    format: 2,
     seed: source.seed,
     asOf: compact.at(-1)![1],
     closedMonthDeliveries: source.deliveries.length,
@@ -129,6 +131,9 @@ export async function buildSnapshotHtml(source: SnapshotSource): Promise<string>
   // "<" never appears unescaped, so the data cannot end its script element.
   const json = JSON.stringify(data).replaceAll("<", "\\u003c");
   const { totals } = data;
+  const options = reportFilterOptions(lines);
+  // States of customers with invoices, like the application's filter.
+  const states = [...new Set(lines.map((line) => line.customerState!))].sort();
   const count = new Intl.NumberFormat("pt-BR");
   const deliveries = `${data.closedMonthDeliveries} closed-month deliveries and the pending ${data.pendingDeliveryMonth} delivery`;
   const csp = `default-src 'none'; script-src ${hash(script)}; style-src ${hash(style)}; base-uri 'none'; form-action 'none'`;
@@ -143,15 +148,19 @@ export async function buildSnapshotHtml(source: SnapshotSource): Promise<string>
 </head>
 <body>
 <main>
-<header>
-<p class="eyebrow">BIOMIX SALES WORKBENCH · REPORT SNAPSHOT</p>
-<h1>Invoiced sales and scheduled collections</h1>
-<p class="notice"><strong>Synthetic, fictional data</strong>, as of ${data.asOf}: seed ${data.seed}, the invoices stored after replaying ${deliveries}. Read-only; nothing is sent anywhere. ${count.format(totals.invoices)} invoices, ${count.format(totals.lines)} lines, ${formatBrlCents(totals.salesCents)} invoiced.</p>
-<noscript><p class="notice">Filters need JavaScript. The unfiltered report below is complete without it.</p></noscript>
+<header class="intro">
+<div>
+<p class="eyebrow">Sales intelligence · Report snapshot</p>
+<h1>Sales dashboard</h1>
+<p>Invoiced sales and scheduled collections from the clean sales feed. Combine any filters to focus on a product, seller, state or period.</p>
+</div>
+<p class="intro-facts"><b>${count.format(totals.invoices)}</b> invoices · <b>${count.format(totals.lines)}</b> lines<br>Billing dates ${options.firstDate} to ${options.lastDate}</p>
 </header>
-<form class="panel filters" id="filters">${renderFilterForm(reportFilterOptions(lines))}</form>
+<p class="notice"><strong>Synthetic, fictional data</strong>, as of ${data.asOf}: seed ${data.seed}, the invoices stored after replaying ${deliveries}. Read-only; nothing is sent anywhere. ${count.format(totals.invoices)} invoices, ${count.format(totals.lines)} lines, ${formatBrlCents(totals.salesCents)} invoiced.</p>
+<noscript><p class="notice">Filters need JavaScript. The unfiltered dashboard below is complete without it.</p></noscript>
+<form class="filter-bar" id="filters" aria-label="Report filters">${renderFilterForm(options, states)}</form>
 <div id="results">${renderResults(lines, {})}</div>
-<footer>Built by <code>npm run snapshot:build</code> from the seeded generator, with the same report and collections modules as the application. Amounts are exact integer cents. All customer, seller and product names are fictional.</footer>
+<footer>Built by <code>npm run snapshot:build</code> from the seeded generator, with the same report, ranking and collections modules as the application. Amounts are exact integer cents; chart scales and shares are rounded for reading. All customer, seller and product names are fictional.</footer>
 </main>
 <script type="application/json" id="snapshot-data">${json}</script>
 <script>${script}</script>

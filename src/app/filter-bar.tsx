@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import type { BusinessUnit } from "@/domain/sales-import/types";
-import { FILTER_KEYS, filtersHref, stateLabel, type FilterKey, type FilterValues } from "./report-filters";
+import { stateLabel } from "@/domain/sales-report/display";
+import { FILTER_KEYS, filtersHref, type FilterKey, type FilterValues } from "./report-filters";
 
 const UNIT_NAMES: Record<BusinessUnit, string> = { AGRO: "Agro", HOME_GARDEN: "Home & Garden" };
 

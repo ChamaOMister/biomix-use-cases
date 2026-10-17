@@ -64,7 +64,8 @@ function checkedAdd(a: number, b: number): number | null {
   return Number.isSafeInteger(sum) ? sum : null;
 }
 
-class Bucket {
+/** Line, distinct-invoice, sales and commission totals of a group of lines. Shared with the rankings. */
+export class Bucket {
   lineCount = 0;
   salesCents = 0;
   commissionCents = 0;
@@ -143,12 +144,9 @@ export function breakdownsReconcile(totals: ReportTotals, byMonth: ReportRow[], 
   return sameTotals(sumRows(byMonth), totals) && sameTotals(sumRows(byBusinessUnit), totals);
 }
 
-export function buildSalesReport(lines: readonly SalesLine[], rawFilters: ReportFilters): SalesReportResult {
-  const normalized = normalizeReportFilters(rawFilters);
-  if (!normalized.ok) return normalized;
-  const { filters } = normalized;
-
-  const matches = (line: SalesLine) =>
+/** Whether a line is selected by normalized filters: every filter combined with AND. */
+export function lineMatcher(filters: ReportFilters): (line: SalesLine) => boolean {
+  return (line) =>
     (filters.customerId === undefined || line.customerId === filters.customerId) &&
     (filters.productId === undefined || line.productId === filters.productId) &&
     (filters.sellerName === undefined || line.sellerName === filters.sellerName) &&
@@ -156,6 +154,14 @@ export function buildSalesReport(lines: readonly SalesLine[], rawFilters: Report
     (filters.customerState === undefined || line.customerState === filters.customerState) &&
     (filters.from === undefined || line.billingDate >= filters.from) &&
     (filters.to === undefined || line.billingDate <= filters.to);
+}
+
+export function buildSalesReport(lines: readonly SalesLine[], rawFilters: ReportFilters): SalesReportResult {
+  const normalized = normalizeReportFilters(rawFilters);
+  if (!normalized.ok) return normalized;
+  const { filters } = normalized;
+
+  const matches = lineMatcher(filters);
 
   const total = new Bucket();
   const months = new Map<string, Bucket>();

@@ -5,6 +5,7 @@ import type { CollectionsReport, CollectionsReportResult } from "@/domain/collec
 import { PAYMENT_SCHEDULE_LABELS } from "@/domain/sales-feed/contract";
 import type { CalendarDate } from "@/domain/sales-import/dates";
 import type { BusinessUnit } from "@/domain/sales-import/types";
+import { formatMonth, initials, stateLabel } from "@/domain/sales-report/display";
 import { formatBrlCents } from "@/domain/sales-report/format";
 import type { SalesReport, SalesReportResult } from "@/domain/sales-report/report";
 import { buildStoredCollectionsReport } from "@/server/collections/stored-collections";
@@ -17,9 +18,9 @@ import {
   type StoredReportFilters,
 } from "@/server/sales-report/stored-report";
 import { CollectionsView } from "./collections-view";
-import { BarList, ColumnChart, formatMonth, initials, RankList } from "./dashboard-charts";
+import { BarList, ColumnChart, RankList } from "./dashboard-charts";
 import { FilterBar } from "./filter-bar";
-import { stateLabel, toggleFilterHref, type FilterKey, type FilterValues } from "./report-filters";
+import { toggleFilterHref, type FilterKey, type FilterValues } from "./report-filters";
 import { BUSINESS_UNIT_NAMES, integer, SalesBreakdowns } from "./sales-report-view";
 
 export type SearchParams = Record<string, string | string[] | undefined>;

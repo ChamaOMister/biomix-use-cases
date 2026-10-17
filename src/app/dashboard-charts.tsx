@@ -1,37 +1,9 @@
 // No "use client": plain server-rendered markup. Hover tooltips are CSS only. Bar lengths and
 // shares are for display; every amount shown as text is exact, formatted from integer cents.
 import Link from "next/link";
+import { axisLabel, formatMonth, niceCeiling, share } from "@/domain/sales-report/display";
 import { formatBrlCents } from "@/domain/sales-report/format";
 import { integer } from "./sales-report-view";
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "2026-09" → "Sep 2026", without going through a time zone. */
-export function formatMonth(key: string): string {
-  const [year, month] = key.split("-");
-  return `${MONTHS[Number(month) - 1] ?? month} ${year}`;
-}
-
-const compactBrl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 });
-
-/** Axis label only: rounded, never used for a value the reader is meant to trust exactly. */
-function axisLabel(cents: number): string {
-  return compactBrl.format(cents / 100);
-}
-
-/** A rounded scale top just above `max`: a round step times a power of ten. */
-function niceCeiling(max: number): number {
-  if (max <= 0) return 1;
-  const power = 10 ** Math.floor(Math.log10(max));
-  for (const step of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (step * power >= max) return step * power;
-  return 10 * power;
-}
-
-function share(value: number, total: number): string {
-  if (total <= 0) return "";
-  const tenths = Math.round((value * 1000) / total);
-  return `${(tenths / 10).toLocaleString("pt-BR", { minimumFractionDigits: 1 })}%`;
-}
 
 export interface ColumnDatum {
   key: string;
@@ -144,12 +116,3 @@ export function RankList({ data }: { data: RankDatum[] }) {
   );
 }
 
-/** Initials for a name's avatar tile. */
-export function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter((word) => /^\p{Lu}/u.test(word))
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("");
-}
